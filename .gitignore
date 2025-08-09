@@ -3,6 +3,8 @@ files/
 images/
 misc/
 
+# small change
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
