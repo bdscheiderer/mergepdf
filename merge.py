@@ -1,6 +1,11 @@
+''' MergePDF is a prgram that merges several pdf files into one 
+    new pdf file. Currently using PdfMerger library and tkinter gui.
+'''
+
 from PyPDF2 import PdfMerger
 from pathlib import Path
 import sys
+import os
 import tkinter as tk
 from tkinter import filedialog
 from tkinter.font import nametofont
@@ -101,7 +106,7 @@ def create_gui(root, named_vars):
     ''' Frame 3 - Action Buttons '''
     # Widgets for Frame 3
     instruction3 = tb.Label(frame3, text="Third, click the 'MERGE PDFs!' button:")
-    merge_button = tb.Button(frame3, bootstyle="primary", text="Merge PDFs!", command=lambda: pdf_merge(named_vars, message3))
+    merge_button = tb.Button(frame3, bootstyle="primary", text="Merge PDFs!", command=lambda: pdf_merge(named_vars, message3, reset_button))
     reset_button = tb.Button(frame3, bootstyle="success", text="Reset", command=lambda: reset_form(named_vars, message1, message2, message3, button1))
     help_button = tb.Button(frame3, bootstyle="warning", text="Help", command=lambda: open_help_topics())
     exit_button = tb.Button(frame3, bootstyle="danger", text="Exit", command=root.destroy)
@@ -141,7 +146,7 @@ def open_contact():
     tk.messagebox.showinfo("Contact", "Contact information.")
 
 def center_window(window):
-    window.update_idletasks()
+    # window.update_idletasks()
     width = WINDOW_WIDTH # window.winfo_width()
     height = WINDOW_HEIGHT # window.winfo_height()
     screen_width = window.winfo_screenwidth()
@@ -163,17 +168,16 @@ def reset_form(named_vars, message1, message2, message3, button1):
 
 def select_folder(message1, named_vars, button1, button2):
     ''' Opens a dialog for the user to select a folder and updaets the path var '''
-    folder_var = named_vars["folder_name"]
-    number_var = named_vars["number_files"]
-    
     # known issue - cannot see files in the directory when selecting folder
     path = filedialog.askdirectory(mustexist=True)
 
     if path:  # If a folder was selected (not canceled)
-        folder_var.set(path)
+        named_vars['folder_name'].set(path)
+
+        # not that have path, find any pdf files in that path
         num = get_pdfs(named_vars)  # function not yet working
-        number_var.set(num)
-        message1.config(text=f"Will merge {num} pdfs found in this folder: {path}")
+        named_vars['number_files'].set(num)
+        message1.config(text=f"Found {num} pdf files in this folder: {path}")
         # can now use 'folder_path' to retrieve files from this directory
     else:
         message1.config(text=f"Folder selection canceled.")
@@ -195,50 +199,75 @@ def get_pdfs(named_vars):
     global FILE_LIST
     FILE_LIST = []
 
-    # ''' Get current path and print as a string '''
-    # print(f"\nCurrent path: {str(Path.cwd())}\n")
+    ''' Get list of pdf files in path -- case-insensitive 
+        globbing for files ending with .pdf or .PDF '''
+    directory_path = Path(named_vars['folder_name'].get())
+    FILE_LIST = [item for item in directory_path.glob("*.pdf", case_sensitive=False)]
+    length = len(FILE_LIST)
 
-    # ''' Get list of pdf files in path -- case-insensitive 
-    #     globbing for files ending with .pdf or .PDF '''
-    # allpdfs = [a for a in Path('.').glob("*.pdf", case_sensitive=False)]
-    # length = len(allpdfs)
+    ''' Check if no or only one pdf found and if so, exit with warning'''
+    if length == 0:
+        print("Warning: no PDF files found.\n")
+    if length == 1:
+        print("Warning: only one PDF file found.\n")
 
-    # ''' Check if no or only one pdf found and if so, exit with warning'''
-    # if length == 0:
-    #     print("Warning: no PDF files found.\n")
-    #     sys.exit()
-    # if length == 1:
-    #     print("Warning: only one PDF file found.\n")
-    #     sys.exit()
-
-    # ''' Print found pdf files '''
-    # print(f"{length} PDF files found:")
-    # for file in allpdfs:
-    #     print(file)
-    # print()
-
-    # ''' Merge pdf files '''
-    # merged_file_name = pdf_merge(allpdfs)
-    # print(f"All files successfully merged to: {merged_file_name}\n")
-
-    FILE_LIST = ["1.pdf", "2.pdf", "3.pdf", "4.pdf", "5.pdf"]
     return len(FILE_LIST)
 
-def pdf_merge(named_vars, message3):
+def pdf_merge(named_vars, message3, reset_button):
     ''' Merges all the pdf files in current directory '''
 
     global FILE_LIST
+
+    directory_path = Path(named_vars['folder_name'].get())
+    merger = PdfMerger()
+    merged_file_name = "merged_pdfs.pdf"  # to do file name?
+    name_and_path = directory_path / merged_file_name
+
+    try:
+        [merger.append(pdf) for pdf in FILE_LIST]
+        with open(name_and_path, "wb") as new_file:
+            merger.write(new_file)
+    except Exception as e:
+        message3.config(text=f"Error merging files: {e}") 
+        reset_button.focus_set()
+        return True
     
-    # merger = PdfMerger()
-    # merged_file_name = "merged_pdfs.pdf"  # to do file name?
-    # [merger.append(pdf) for pdf in allpdfs]
-    # with open(merged_file_name, "wb") as new_file:
-    #     merger.write(new_file)
-    # return merged_file_name
-    
-    print("pdf_merge function: ", FILE_LIST)
     message3.config(text=f"Successfully merged {len(FILE_LIST)} files.") 
+    reset_button.focus_set()
     return True
+
+def is_valid_filename(filename):
+    """
+    Checks if a given filename is likely valid across common operating systems.
+    This is a basic check and may not cover all edge cases or specific filesystem rules.
+    """
+    if not filename or filename.strip() == "":
+        return False, "Filename cannot be empty."
+
+    # Common disallowed characters across Windows and Unix-like systems
+    disallowed_chars = r'<>:"/\|?*'
+    for char in disallowed_chars:
+        if char in filename:
+            return False, f"Filename contains disallowed character: '{char}'"
+
+    # Windows-specific reserved names (case-insensitive)
+    windows_reserved_names = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+        "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
+        "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    ]
+    if os.name == 'nt' and filename.upper().split('.')[0] in windows_reserved_names:
+        return False, "Filename is a Windows reserved name."
+
+    # Basic check for leading/trailing spaces or dots (often problematic)
+    if filename.endswith('.') or filename.endswith(' '):
+        return False, "Filename cannot end with a dot or space."
+
+    return True, "Filename is valid."
+
+
+
+
 
 if __name__ == "__main__":
     main()
