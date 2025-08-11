@@ -15,7 +15,11 @@ from ttkbootstrap.constants import *
 # global variables
 WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 400
-FILE_LIST = [] # global list to pass to functions
+DEFAULT_MERGED_NAME = "merged_pdfs.pdf"
+
+# global list of pdf files to pass to functions because of tkinter behavior
+FILE_LIST = []
+
 
 def main():
     """Main function to initialize and run the Tkinter application."""
@@ -40,9 +44,9 @@ def main():
 
     # dictionary of Tkinter variables to hold data
     named_vars = {
-    "folder_name" : tk.StringVar(value=""),
-    "file_name" : tk.StringVar(value=""),
-    "number_files" : tk.IntVar(value=0)
+        "folder_name" : tk.StringVar(value=""),
+        "file_name" : tk.StringVar(value=""),
+        "number_files" : tk.IntVar(value=0)
     }
 
     # creates tkinter window and widgets
@@ -79,59 +83,92 @@ def create_gui(root, named_vars):
     frame2.columnconfigure(0, uniform="equal_cols", weight=1)
     frame2.columnconfigure(0, uniform="equal_cols", weight=2)
 
-    ''' Frame 1 - Select Folder '''
-    # Widgets for Frame 1
-    instruction1 = tb.Label(frame1, text="First, click 'Select' to choose the folder where your pdf files are located:")
-    button1 = tb.Button(frame1, text="Select folder", command=lambda: select_folder(message1, named_vars, button1, button2))
-    message1 = tb.Label(frame1, font=("TkDefaultFont", 10, "italic"), text="No folder selected yet.")
+    # Create dictionary of all widgets
+    widgets = create_widgets(root, frame1, frame2, frame3, named_vars)
 
-    instruction1.grid(row=0, column=0, sticky="w", padx=20, pady=5)
-    button1.grid(row=1, column=0, sticky="w", padx=20, pady=5)
-    message1.grid(row=2, column=0, sticky="w", padx=20, pady=5)
+    # Frame 1 grid
+    widgets['instruction1'].grid(row=0, column=0, sticky="w", padx=20, pady=5)
+    widgets['select_button'].grid(row=1, column=0, sticky="w", padx=20, pady=5)
+    widgets['message1'].grid(row=2, column=0, sticky="w", padx=20, pady=5)
+    widgets['select_button'].focus_set() # set intial focus to folder select button
 
-    button1.focus_set()
+    # Frame 2 grid
+    widgets['instruction2'].grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=5)
+    widgets['submit_button'].grid(row=1, column=0, sticky="w", padx=20, pady=5)
+    widgets['entry2'].grid(row=1, column=1, sticky="w", padx=20, pady=5)
+    widgets['message2'].grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=5)
 
-    ''' Frame 2 - Select File Name '''
-    # Widgets for Frame 2
-    instruction2 = tb.Label(frame2, text="Second, enter a name for the merged file and click 'Submit':")
-    entry2 = tb.Entry(frame2, width=50, textvariable=named_vars["file_name"])
-    button2 = tb.Button(frame2, text="Submit name", command=lambda: select_name(message2, named_vars, merge_button))
-    message2 = tb.Label(frame2, font=("TkDefaultFont", 10, "italic"), text="Leave blank for default name of: 'merged_pdfs.pdf'")
+    # Frame 3 grid
+    widgets['instruction3'].grid(row=0, column=0, sticky=tk.EW, padx=20, pady=5)
+    widgets['merge_button'].grid(row=1, column=0, columnspan=2, sticky=tk.EW, padx=20, pady=5)
+    widgets['reset_button'].grid(row=1, column=2, sticky=tk.EW, padx=10, pady=5)
+    widgets['help_button'].grid(row=1, column=3, sticky=tk.EW, padx=10, pady=5)
+    widgets['exit_button'].grid(row=1, column=4, sticky=tk.EW, padx=10, pady=5)
+    widgets['message3'].grid(row=2, column=0, columnspan=5, rowspan=1, sticky=tk.EW, padx=20, pady=5)
 
-    instruction2.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=5)
-    button2.grid(row=1, column=0, sticky="w", padx=20, pady=5)
-    entry2.grid(row=1, column=1, sticky="w", padx=20, pady=5)
-    message2.grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=5)
+def create_widgets(root, frame1, frame2, frame3, named_vars):
+    ''' Create all widgets and return as dict '''
+    widgets = {} # needed bc dict self-references
+    widgets = {
+        # Frame 1 widgets
+        "instruction1" : tb.Label(frame1, 
+                        text="First, click 'Select' to choose the folder where your pdf files are located:"),
+        "select_button" : tb.Button(frame1, 
+                        text="Select folder", 
+                        command=lambda: select_folder(widgets, named_vars)),
+        "message1" : tb.Label(frame1, 
+                        font=("TkDefaultFont", 10, "italic"), 
+                        text="No folder selected yet."),
 
-    ''' Frame 3 - Action Buttons '''
-    # Widgets for Frame 3
-    instruction3 = tb.Label(frame3, text="Third, click the 'MERGE PDFs!' button:")
-    merge_button = tb.Button(frame3, bootstyle="primary", text="Merge PDFs!", command=lambda: pdf_merge(named_vars, message3, reset_button))
-    reset_button = tb.Button(frame3, bootstyle="success", text="Reset", command=lambda: reset_form(named_vars, message1, message2, message3, button1))
-    help_button = tb.Button(frame3, bootstyle="warning", text="Help", command=lambda: open_help_topics())
-    exit_button = tb.Button(frame3, bootstyle="danger", text="Exit", command=root.destroy)
-    message3 = tb.Label(frame3, font=("TkDefaultFont", 10, "italic"), text="")
+        # Frame 2 widgets
+        "instruction2" : tb.Label(frame2, 
+                        text="Second, enter a name for the merged file and click 'Submit':"),
+        "entry2" : tb.Entry(frame2, 
+                        width=50, 
+                        textvariable=named_vars["file_name"]),
+        "submit_button" : tb.Button(frame2, 
+                        text="Submit name", 
+                        command=lambda: select_name(widgets, named_vars)),
+        "message2" : tb.Label(frame2, 
+                        font=("TkDefaultFont", 10, "italic"), 
+                        text="Leave blank for default name of: 'merged_pdfs.pdf'"),
 
-    instruction3.grid(row=0, column=0, sticky=tk.EW, padx=20, pady=5)
-    merge_button.grid(row=1, column=0, columnspan=2, sticky=tk.EW, padx=20, pady=5)
-    reset_button.grid(row=1, column=2, sticky=tk.EW, padx=10, pady=5)
-    help_button.grid(row=1, column=3, sticky=tk.EW, padx=10, pady=5)
-    exit_button.grid(row=1, column=4, sticky=tk.EW, padx=10, pady=5)
-    message3.grid(row=2, column=0, columnspan=5, rowspan=1, sticky=tk.EW, padx=20, pady=5)
+        # Frame 3 widgets
+        "instruction3" : tb.Label(frame3, 
+                        text="Third, click the 'MERGE PDFs!' button:"),
+        "merge_button" : tb.Button(frame3, 
+                        bootstyle="primary", 
+                        text="Merge PDFs!", 
+                        command=lambda: pdf_merge(widgets, named_vars)),
+        "reset_button" : tb.Button(frame3, 
+                        bootstyle="success", 
+                        text="Reset", 
+                        command=lambda: reset_form(widgets, named_vars)),
+        "help_button" :  tb.Button(frame3, 
+                        bootstyle="warning", 
+                        text="Help", 
+                        command=lambda: open_help_topics()),
+        "exit_button" : tb.Button(frame3, 
+                        bootstyle="danger", 
+                        text="Exit", 
+                        command=root.destroy),
+        "message3" : tb.Label(frame3, 
+                        font=("TkDefaultFont", 10, "italic"), 
+                        text="")
+    }
+
+    return widgets
 
 def create_menu(root, menubar):
     file_menu = tk.Menu(menubar, tearoff=0)
     menubar.add_cascade(label="File", menu=file_menu)
+    file_menu.add_command(label="Exit", command=root.destroy)
 
     help_menu = tk.Menu(menubar, tearoff=0)
     menubar.add_cascade(label="Help", menu=help_menu)
-
     help_menu.add_command(label="Instructions", command=open_help_topics)
     help_menu.add_command(label="About", command=show_about_info)
     help_menu.add_command(label="Contact", command=open_contact)
-
-    #help_menu.add_separator() # Add a separator line
-    file_menu.add_command(label="Exit", command=root.destroy)
 
 def show_about_info():
     # Function to display "About" information
@@ -155,18 +192,20 @@ def center_window(window):
     y = (screen_height - height) // 2
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def reset_form(named_vars, message1, message2, message3, button1):
+def reset_form(widgets, named_vars):
     named_vars["folder_name"].set("")
     named_vars["file_name"].set("")
-    #named_vars["file_list"].set([])
     named_vars["number_files"].set(0)
 
-    message1.config(text=f"No folder selected yet.") # message1 default text
-    message2.config(text=f"Leave blank for default name of: 'merged_pdfs.pdf'") # message2
-    message3.config(text=f"")
-    button1.focus_set() # focus to Select folder button
+    # reset text
+    widgets['message1'].config(text=f"No folder selected yet.") # message1 default text
+    widgets['message2'].config(text=f"Leave blank for default name of: 'merged_pdfs.pdf'")
+    widgets['message3'].config(text=f"")
 
-def select_folder(message1, named_vars, button1, button2):
+    # focus to Select folder button
+    widgets['button1'].focus_set() 
+
+def select_folder(widgets, named_vars):
     ''' Opens a dialog for the user to select a folder and updaets the path var '''
     # known issue - cannot see files in the directory when selecting folder
     path = filedialog.askdirectory(mustexist=True)
@@ -174,53 +213,87 @@ def select_folder(message1, named_vars, button1, button2):
     if path:  # If a folder was selected (not canceled)
         named_vars['folder_name'].set(path)
 
-        # not that have path, find any pdf files in that path
-        num = get_pdfs(named_vars)  # function not yet working
-        named_vars['number_files'].set(num)
-        message1.config(text=f"Found {num} pdf files in this folder: {path}")
-        # can now use 'folder_path' to retrieve files from this directory
+        # now that have path, find any pdf files in that path
+        num, message = get_pdfs(widgets, named_vars)
     else:
-        message1.config(text=f"Folder selection canceled.")
-        button1.focus_set()
+        widgets['message1'].config(text=f"Folder selection canceled.")
+        widgets['select_button'].focus_set()
         return
     
-    button2.focus_set()
+    if num == 0 or num == 1:
+        widgets['message1'].config(text=message)
+        widgets['select_button'].focus_set()
+        return
 
-def select_name(label2, named_vars, merge_button):
+    widgets['message1'].config(text=f"Found {num} pdf files in this folder: {path}")
+    widgets['submit_button'].focus_set()
+
+def select_name(widgets, named_vars):
     """Updates the text of file name label widget."""
-    new_text = named_vars["file_name"].get()
-    label2.config(text=f"You entered: {new_text}")
+   #named_vars['file_name'].set(DEFAULT_MERGED_NAME)  
+    new_name = named_vars["file_name"].get()
+    success, message = is_valid_filename(new_name)
+    if success == False:
+        # send error message and return focus to submit
+        widgets['message2'].config(text=f"Error: {message}")
+        named_vars["file_name"].set("")
+        widgets['submit_button'].focus_set()
+        return
 
-    merge_button.focus_set()
+    # check if ends with .pdf, if not add .pdf to end
 
-def get_pdfs(named_vars):
 
-    # ensure global var is empty list
-    global FILE_LIST
-    FILE_LIST = []
+    # check if filename is in the pdf folder (will be in FILE_LIST)
+    # if no continue, if yes add -1 to the end, increment if necessary
 
+
+
+
+    # if pass all above checks, set new file_name
+    named_vars['file_name'].set(new_name)
+
+    # print new name and set focus to the merge button
+    widgets['message2'].config(text=f"Merged file name: {new_name}")
+    widgets['merge_button'].focus_set()
+
+def get_pdfs(widgets, named_vars):
     ''' Get list of pdf files in path -- case-insensitive 
         globbing for files ending with .pdf or .PDF '''
+
+    # this function will update global var
+    global FILE_LIST 
+
+    # ensure global var is empty list
+    FILE_LIST = []
+
+    # search for all pdf files in selected folder
     directory_path = Path(named_vars['folder_name'].get())
     FILE_LIST = [item for item in directory_path.glob("*.pdf", case_sensitive=False)]
+
+    # ensure at least two pdfs to merge
     length = len(FILE_LIST)
 
-    ''' Check if no or only one pdf found and if so, exit with warning'''
     if length == 0:
-        print("Warning: no PDF files found.\n")
+        message = "Warning: no PDF files found."
+        return length, message
     if length == 1:
-        print("Warning: only one PDF file found.\n")
+        message = "Warning: only one PDF file found."
+        return length, message
 
-    return len(FILE_LIST)
+    named_vars['number_files'].set(length)
+    
+    return length
 
-def pdf_merge(named_vars, message3, reset_button):
+def pdf_merge(widgets, named_vars):
     ''' Merges all the pdf files in current directory '''
+    merger = PdfMerger()
 
-    global FILE_LIST
+    if named_vars['file_name'] == "":
+        merged_file_name = DEFAULT_MERGED_NAME
+    else:
+        merged_file_name = named_vars['file_name'].get()
 
     directory_path = Path(named_vars['folder_name'].get())
-    merger = PdfMerger()
-    merged_file_name = "merged_pdfs.pdf"  # to do file name?
     name_and_path = directory_path / merged_file_name
 
     try:
@@ -228,16 +301,17 @@ def pdf_merge(named_vars, message3, reset_button):
         with open(name_and_path, "wb") as new_file:
             merger.write(new_file)
     except Exception as e:
-        message3.config(text=f"Error merging files: {e}") 
-        reset_button.focus_set()
-        return True
+        widgets['message3'].config(text=f"Error merging files: {e}") 
+        widgets['reset_button'].focus_set()
+        return
     
-    message3.config(text=f"Successfully merged {len(FILE_LIST)} files.") 
-    reset_button.focus_set()
-    return True
+    widgets['message3'].config(text=f"Successfully merged {len(FILE_LIST)} files.") 
+    widgets['reset_button'].focus_set()
 
 def is_valid_filename(filename):
     """
+    PathValidate function from: https://github.com/thombashi/pathvalidate
+
     Checks if a given filename is likely valid across common operating systems.
     This is a basic check and may not cover all edge cases or specific filesystem rules.
     """
@@ -264,10 +338,6 @@ def is_valid_filename(filename):
         return False, "Filename cannot end with a dot or space."
 
     return True, "Filename is valid."
-
-
-
-
 
 if __name__ == "__main__":
     main()
