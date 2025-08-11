@@ -2,9 +2,9 @@
     new pdf file. Currently using PdfMerger library and tkinter gui.
 '''
 
+from datetime import datetime
 from PyPDF2 import PdfMerger
 from pathlib import Path
-import sys
 import os
 import tkinter as tk
 from tkinter import filedialog
@@ -203,7 +203,7 @@ def reset_form(widgets, named_vars):
     widgets['message3'].config(text=f"")
 
     # focus to Select folder button
-    widgets['button1'].focus_set() 
+    widgets['select_button'].focus_set() 
 
 def select_folder(widgets, named_vars):
     ''' Opens a dialog for the user to select a folder and updaets the path var '''
@@ -229,10 +229,15 @@ def select_folder(widgets, named_vars):
     widgets['submit_button'].focus_set()
 
 def select_name(widgets, named_vars):
-    """Updates the text of file name label widget."""
-   #named_vars['file_name'].set(DEFAULT_MERGED_NAME)  
-    new_name = named_vars["file_name"].get()
-    success, message = is_valid_filename(new_name)
+    '''Checks validity of file name and updates widget '''
+    # Get user entered file name and check not empty strong
+    if named_vars['file_name'].get() == "":
+        name = DEFAULT_MERGED_NAME
+    else:
+        name = named_vars['file_name'].get()
+
+    # Check valid filename
+    success, message = is_valid_filename(name)
     if success == False:
         # send error message and return focus to submit
         widgets['message2'].config(text=f"Error: {message}")
@@ -241,29 +246,32 @@ def select_name(widgets, named_vars):
         return
 
     # check if ends with .pdf, if not add .pdf to end
-
+    file_name = check_pdf_extension(name)
 
     # check if filename is in the pdf folder (will be in FILE_LIST)
-    # if no continue, if yes add -1 to the end, increment if necessary
-
-
-
+    # if no continue, if yes add datetime to beginnning of name
+    for item in FILE_LIST:
+        file_path = Path(item)
+        if file_path.name == file_name:
+            
+            # Get the current datetime object and format as string
+            current_datetime = datetime.now()
+            datetime_as_string = current_datetime.strftime("%y%m%d%H%M%S")
+            file_name = datetime_as_string + file_name
 
     # if pass all above checks, set new file_name
-    named_vars['file_name'].set(new_name)
+    named_vars['file_name'].set(file_name)
 
     # print new name and set focus to the merge button
-    widgets['message2'].config(text=f"Merged file name: {new_name}")
+    widgets['message2'].config(text=f"Merged file name: {file_name}")
     widgets['merge_button'].focus_set()
 
 def get_pdfs(widgets, named_vars):
     ''' Get list of pdf files in path -- case-insensitive 
         globbing for files ending with .pdf or .PDF '''
 
-    # this function will update global var
+    # this function will update global var; ensure list is empty
     global FILE_LIST 
-
-    # ensure global var is empty list
     FILE_LIST = []
 
     # search for all pdf files in selected folder
@@ -272,27 +280,22 @@ def get_pdfs(widgets, named_vars):
 
     # ensure at least two pdfs to merge
     length = len(FILE_LIST)
-
     if length == 0:
         message = "Warning: no PDF files found."
         return length, message
-    if length == 1:
+    elif length == 1:
         message = "Warning: only one PDF file found."
         return length, message
+    else:
+        named_vars['number_files'].set(length)
+        message = "sucess"
 
-    named_vars['number_files'].set(length)
-    
-    return length
+    return length, message
 
 def pdf_merge(widgets, named_vars):
     ''' Merges all the pdf files in current directory '''
     merger = PdfMerger()
-
-    if named_vars['file_name'] == "":
-        merged_file_name = DEFAULT_MERGED_NAME
-    else:
-        merged_file_name = named_vars['file_name'].get()
-
+    merged_file_name = named_vars['file_name'].get()
     directory_path = Path(named_vars['folder_name'].get())
     name_and_path = directory_path / merged_file_name
 
@@ -307,6 +310,13 @@ def pdf_merge(widgets, named_vars):
     
     widgets['message3'].config(text=f"Successfully merged {len(FILE_LIST)} files.") 
     widgets['reset_button'].focus_set()
+
+def check_pdf_extension(filename):
+    ''' Checks that filename ends with ".pdf", if not, add extension. '''
+    if not filename.lower().endswith(".pdf"):
+        return filename + ".pdf"
+    print(filename)
+    return filename
 
 def is_valid_filename(filename):
     """
