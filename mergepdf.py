@@ -6,6 +6,7 @@ from datetime import datetime
 from PyPDF2 import PdfMerger
 from pathlib import Path
 import os
+import sys
 import tkinter as tk
 from tkinter import filedialog
 from tkinter.font import nametofont
@@ -35,7 +36,8 @@ def main():
     default_font.configure(size=12)
 
     # Load the icon image
-    root.iconbitmap("favicon_m.ico")
+    icon_path = resource_path("favicon.ico")
+    root.iconbitmap(icon_path)
 
     # create menus
     menubar = tk.Menu(root)
@@ -374,6 +376,16 @@ def is_valid_filename(filename):
         return False, "Filename cannot end with a dot or space."
 
     return True, "Filename is valid."
+
+def resource_path(relative_path):
+        # Google AI function:
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
 
 if __name__ == "__main__":
     main()
