@@ -167,18 +167,18 @@ def create_menu(root, menubar):
     help_menu = tk.Menu(menubar, tearoff=0)
     menubar.add_cascade(label="Help", menu=help_menu)
     help_menu.add_command(label="Instructions", command=open_help_topics)
-    help_menu.add_command(label="About", command=show_about_info)
-    help_menu.add_command(label="Contact", command=open_contact)
+    help_menu.add_command(label="About", command=open_about_info)
+    help_menu.add_command(label="Contact", command=open_contact_info)
 
-def show_about_info():
+def open_about_info():
     # Function to display "About" information
-    tk.messagebox.showinfo("About", "This is a sample Tkinter application.")
+    tk.messagebox.showinfo("About", "MergePDF 1.0 (2025)")
 
 def open_help_topics():
     # Function to open help documentation or a new window with help info
-    tk.messagebox.showinfo("Instructions", "Here you would find detailed help.")
+    tk.messagebox.showinfo("Instructions", "Instructions.")
 
-def open_contact():
+def open_contact_info():
     # Function to open help documentation or a new window with help info
     tk.messagebox.showinfo("Contact", "Contact information.")
 
@@ -230,14 +230,11 @@ def select_folder(widgets, named_vars):
 
 def select_name(widgets, named_vars):
     '''Checks validity of file name and updates widget '''
-    # Get user entered file name and check not empty strong
-    if named_vars['file_name'].get() == "":
-        name = DEFAULT_MERGED_NAME
-    else:
-        name = named_vars['file_name'].get()
+    # get user entered filename and check if empty string
+    file_name = get_user_file_name(named_vars)
 
     # Check valid filename
-    success, message = is_valid_filename(name)
+    success, message = is_valid_filename(file_name)
     if success == False:
         # send error message and return focus to submit
         widgets['message2'].config(text=f"Error: {message}")
@@ -245,25 +242,8 @@ def select_name(widgets, named_vars):
         widgets['submit_button'].focus_set()
         return
 
-    # check if ends with .pdf, if not add .pdf to end
-    file_name = check_pdf_extension(name)
-
-    # check if filename is in the pdf folder (will be in FILE_LIST)
-    # if no continue, if yes add datetime to beginnning of name
-    for item in FILE_LIST:
-        file_path = Path(item)
-        if file_path.name == file_name:
-            
-            # Get the current datetime object and format as string
-            current_datetime = datetime.now()
-            datetime_as_string = current_datetime.strftime("%y%m%d%H%M%S")
-            file_name = datetime_as_string + file_name
-
-    # if pass all above checks, set new file_name
-    named_vars['file_name'].set(file_name)
-
-    # print new name and set focus to the merge button
-    widgets['message2'].config(text=f"Merged file name: {file_name}")
+    # display new name and set focus to the merge button
+    widgets['message2'].config(text=f"You entered: {file_name}")
     widgets['merge_button'].focus_set()
 
 def get_pdfs(widgets, named_vars):
@@ -294,8 +274,17 @@ def get_pdfs(widgets, named_vars):
 
 def pdf_merge(widgets, named_vars):
     ''' Merges all the pdf files in current directory '''
+    # check 2 or more files in FILE_LIST
+    if len(FILE_LIST) < 2:
+        widgets['message3'].config(text=f"Need to select a folder with two or more files.") 
+        widgets['reset_button'].focus_set()
+        return
+
     merger = PdfMerger()
-    merged_file_name = named_vars['file_name'].get()
+
+    # gets user entered file name or default if empty string
+    merged_file_name = check_file_name(widgets, named_vars)
+
     directory_path = Path(named_vars['folder_name'].get())
     name_and_path = directory_path / merged_file_name
 
@@ -311,12 +300,49 @@ def pdf_merge(widgets, named_vars):
     widgets['message3'].config(text=f"Successfully merged {len(FILE_LIST)} files.") 
     widgets['reset_button'].focus_set()
 
+def check_file_name(widgets, named_vars):
+    # returns text if user entered text 
+    # which has already passed validate function
+    # if user not enter text, this returns default name
+    file_name = get_user_file_name(named_vars)
+
+    # check if ends with .pdf, if not add .pdf to end
+    file_name = check_pdf_extension(file_name)
+
+    # check if filename is in the pdf folder (will be in FILE_LIST)
+    # if no, continue if yes, add datetime to beginnning of name
+    file_name = check_file_in_list(file_name, named_vars)
+
+    # if pass all above checks, set new file_name
+    named_vars['file_name'].set(file_name)
+
+    # display new merged file name
+    widgets['message2'].config(text=f"New merged file name: {file_name}")
+
+    return file_name
+
 def check_pdf_extension(filename):
     ''' Checks that filename ends with ".pdf", if not, add extension. '''
     if not filename.lower().endswith(".pdf"):
         return filename + ".pdf"
-    print(filename)
     return filename
+
+def get_user_file_name(named_vars):
+    # Get user entered file name and check not empty strong
+    # if empty, set to default name
+    if named_vars['file_name'].get() == "":
+        return DEFAULT_MERGED_NAME
+    else:
+        return named_vars['file_name'].get()
+
+def check_file_in_list(file_name, named_vars):
+    files = [Path(file).name for file in FILE_LIST]
+    if file_name in files:       
+        # Get the current datetime object and format as string
+        current_datetime = datetime.now()
+        datetime_as_string = current_datetime.strftime("%y%m%d%H%M%S")
+        file_name = datetime_as_string + file_name
+    return file_name
 
 def is_valid_filename(filename):
     """
