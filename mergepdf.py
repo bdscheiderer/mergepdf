@@ -275,7 +275,9 @@ def get_pdfs(widgets, named_vars):
     return length, message
 
 def pdf_merge(widgets, named_vars):
-    ''' Merges all the pdf files in current directory '''
+    ''' Merges all the pdf files in current directory
+        PDFMerger from https://pypdf2.readthedocs.io/en/3.0.0/index.html 
+    '''
     # check 2 or more files in FILE_LIST
     if len(FILE_LIST) < 2:
         widgets['message3'].config(text=f"Need to select a folder with two or more files.") 
