@@ -174,6 +174,7 @@ class MergePDFApp:
         help_menu.add_command(label="Contact", command=open_contact_info)
 
     def reset_form(self):
+        self.file_list = []
         self.named_vars["folder_name"].set("")
         self.named_vars["file_name"].set("")
         self.named_vars["number_files"].set(0)
@@ -445,7 +446,7 @@ def is_valid_filename(filename):
         "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
         "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
     ]
-    if os.name == 'nt' and filename.upper().split('.')[0] in windows_reserved_names:
+    if filename.upper().split('.')[0] in windows_reserved_names:
         return False, "Filename is a Windows reserved name."
 
     if filename.endswith('.') or filename.endswith(' '):

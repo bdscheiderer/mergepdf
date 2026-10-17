@@ -2,12 +2,12 @@
 
 ## Status
 - [x] Code ready (class-based, cross-platform icon loading)
-- [x] `.spec` file has `hiddenimports=['pypdf']`
+- [x] `.spec` file updated — handles Windows EXE and macOS BUNDLE
 - [x] Windows `.ico` icon exists (`favicon.ico`)
-- [ ] macOS `icon.png` needed
-- [ ] macOS `icon.icns` needed
-- [ ] `LICENSE.txt` file needed
-- [ ] Windows installer (optional)
+- [x] macOS `icon.png` exists (1024x1024, copied from `images/mergepdf-white_bg.png`)
+- [ ] macOS `icon.icns` needed — convert `icon.png` using `iconutil` or cloudconvert.com
+- [x] `LICENSE.txt` file exists
+- [x] Windows installer script ready (`mergepdf.iss` — requires Inno Setup)
 - [ ] macOS `.dmg` package (optional)
 
 ---
