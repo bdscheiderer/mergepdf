@@ -210,3 +210,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+REVIEW_NOTES
+DISTRIBUTION_NOTES
+SHIPPING_ADVICE
