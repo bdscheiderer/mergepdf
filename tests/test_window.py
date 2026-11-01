@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pypdf import PdfWriter
 
-from mergepdf import MergePDFApp
+from mergepdf import MergePDFApp, PdfChoiceDialog
 
 
 def write_blank_pdf(folder, name, page_widths):
@@ -219,6 +219,68 @@ class WindowTests(unittest.TestCase):
         self.assertIn("Successfully merged 2", self.app.message_merge.cget("text"))
         self.assertTrue(self.app.open_button.winfo_ismapped())
         self.assertEqual(str(self.app.merge_button.cget("state")), "normal")
+
+    def test_checklist_move_buttons_set_the_merge_order(self):
+        """Move buttons change the order Confirm hands to the merge.
+
+        Purpose:
+            The checklist starts A to Z. Moving the highlighted file
+            must change that order, keep an unchecked box with its file,
+            and return the new order from Confirm.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Opens the checklist and then closes it. Does not write a PDF.
+        """
+        dialog = PdfChoiceDialog(
+            self.app.root,
+            [Path("a.pdf"), Path("b.pdf"), Path("c.pdf")],
+        )
+        try:
+            self.app.root.update()
+            self.assertEqual(dialog.selected_index, 0)
+            self.assertEqual(str(dialog.move_up_button.cget("state")), "disabled")
+            self.assertEqual(str(dialog.move_top_button.cget("state")), "disabled")
+            self.assertEqual(str(dialog.move_down_button.cget("state")), "normal")
+
+            _path, checked = dialog.rows[0]
+            checked.set(False)
+            dialog.move_down()
+
+            names = []
+            for pdf_path, row_checked in dialog.rows:
+                names.append((pdf_path.name, row_checked.get()))
+            self.assertEqual(
+                names,
+                [("b.pdf", True), ("a.pdf", False), ("c.pdf", True)],
+            )
+            self.assertEqual(dialog.selected_index, 1)
+
+            dialog.move_to_top()
+            names = []
+            for pdf_path, _row_checked in dialog.rows:
+                names.append(pdf_path.name)
+            self.assertEqual(names, ["a.pdf", "b.pdf", "c.pdf"])
+            self.assertFalse(dialog.rows[0][1].get())
+
+            dialog.select_row(1)
+            dialog.move_to_bottom()
+            dialog.confirm()
+
+            confirmed = []
+            for pdf_path in dialog.selected:
+                confirmed.append(pdf_path.name)
+            # a.pdf is still unchecked, so it is not in the merge.
+            # b.pdf was moved to the bottom. c.pdf stays in the middle.
+            self.assertEqual(confirmed, ["c.pdf", "b.pdf"])
+        finally:
+            if dialog.window.winfo_exists():
+                dialog.window.destroy()
 
 
 if __name__ == "__main__":

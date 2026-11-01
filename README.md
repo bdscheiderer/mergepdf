@@ -62,7 +62,7 @@ python3 -m venv .venv
 
 The window has three steps:
 
-1. **Select folder.** A checklist opens with every PDF in that folder checked. Uncheck any you want to leave out. Confirm needs at least two files. The merge follows the list from top to bottom (A to Z).
+1. **Select folder.** A checklist opens with every PDF in that folder checked. The list starts in A to Z order. Click a file name, then use Move up, Move down, Move to top, or Move to bottom. Uncheck any file you want to leave out. Confirm needs at least two files. The merge follows the list from top to bottom.
 2. **Submit name.** Leave the box blank to use `merged_pdfs.pdf`.
 3. **Merge PDFs.** The new file is written in the same folder. If that name already exists, the date and time are added in front so the older file is kept.
 

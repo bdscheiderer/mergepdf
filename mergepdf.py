@@ -47,6 +47,10 @@ from merge_logic import (
     describe_platform_opener,
     list_pdfs,
     merge_pdfs,
+    move_down,
+    move_to_bottom,
+    move_to_top,
+    move_up,
     prepare_output_name,
     selection_problem,
 )
@@ -267,11 +271,12 @@ def show_help(parent):
         "1. Click Select folder and choose the folder\n"
         "   that contains your PDF files.\n\n"
         "2. A checklist opens. Every PDF starts checked.\n"
-        "   Uncheck any file you want to leave out, then\n"
-        "   click Confirm selection. At least two files\n"
-        "   are required.\n\n"
+        "   The list starts in A to Z order.\n"
+        "   Click a file name to highlight it, then use\n"
+        "   Move up, Move down, Move to top, or Move to bottom.\n"
         "   The merge follows the list from top to bottom.\n"
-        "   That order is A to Z.\n\n"
+        "   Uncheck any file you want to leave out.\n"
+        "   At least two files must stay checked.\n\n"
         "3. Type a name for the merged file and click\n"
         "   Submit name. Leave the box blank to use\n"
         "   merged_pdfs.pdf.\n\n"
@@ -441,22 +446,31 @@ class VerticalScroll:
 class PdfChoiceDialog:
     """The checklist of PDFs found in the chosen folder.
 
-    Every box starts checked. Confirm stores the checked paths on
-    self.selected, in list order. Cancel, or closing the window, leaves
-    self.selected as None. The main window treats None as "do not change
-    the previous choice".
+    Every box starts checked. The list starts in A to Z order.
+    Clicking a file name highlights that row. The Move buttons change
+    the order of the highlighted row. Confirm stores the checked paths
+    on self.selected, in the order shown on screen, top to bottom.
+    Cancel, or closing the window, leaves self.selected as None.
+    The main window treats None as "do not change the previous choice".
+
+    self.rows is a list of (path, checkbox variable) pairs.
+    Index 0 is the file that will be merged first.
+    The checkbox variable stays with its file when the row moves,
+    so a file that was unchecked is still unchecked after a move.
     """
 
     def __init__(self, parent, pdf_files):
         """Build the checklist, but do not wait for the user yet.
 
         Purpose:
-            Show one checkbox per PDF. The caller uses wait_window()
-            so the rest of select_folder pauses until this window closes.
+            Show one checkbox per PDF, in the order of pdf_files.
+            The caller uses wait_window() so select_folder pauses
+            until this window closes.
 
         Inputs:
             parent: the main MergePDF window.
-            pdf_files: list of pathlib.Path, already sorted A to Z.
+            pdf_files: list of pathlib.Path. list_pdfs() sorts this
+                A to Z before the dialog opens. The user can reorder it.
 
         Outputs:
             None. After the user finishes, read self.selected.
@@ -472,6 +486,16 @@ class PdfChoiceDialog:
         # stay on self. If we only created them inside a loop and did
         # not keep them, Tk would forget the checkmarks.
         self.rows = []
+        for pdf_path in pdf_files:
+            checked = tk.BooleanVar(value=True)
+            self.rows.append((pdf_path, checked))
+
+        # None means no row is highlighted. The first file starts
+        # highlighted so the Move buttons have a clear target.
+        if len(self.rows) > 0:
+            self.selected_index = 0
+        else:
+            self.selected_index = None
 
         self.window = tb.Toplevel(
             master=parent,
@@ -484,13 +508,20 @@ class PdfChoiceDialog:
 
         introduction = tb.Label(
             self.window,
-            text="Check the PDFs to include. The merge follows this list from top to bottom (A to Z).",
-            wraplength=460,
+            text=(
+                "Check the PDFs to include. Click a file name to highlight it, "
+                "then use the Move buttons. The merge follows this list from "
+                "top to bottom. It starts in A to Z order."
+            ),
+            wraplength=640,
         )
         introduction.pack(padx=20, pady=(15, 5), anchor="w")
 
-        self._build_checklist(pdf_files)
+        self._build_checklist()
         self._build_buttons()
+        self.redraw_rows()
+        self.update_move_buttons()
+        self.show_highlight_status()
 
         # grab_set makes this window modal: the main window's Merge button
         # cannot run while the user is still choosing files.
@@ -504,65 +535,508 @@ class PdfChoiceDialog:
         )
         self.confirm_button.focus_set()
 
-    def _build_checklist(self, pdf_files):
-        """Add a scrolling list with one checkbox per PDF.
+    def _build_checklist(self):
+        """Add the scrolling list and the Move buttons beside it.
 
         Purpose:
             A folder may hold more PDFs than fit on screen. The canvas
-            plus scrollbar lets the user reach all of them.
+            plus scrollbar lets the user reach all of them. The Move
+            buttons sit beside the list so they stay visible while the
+            user scrolls.
 
         Inputs:
-            pdf_files: list of pathlib.Path.
+            None. The files are already stored on self.rows.
 
         Outputs:
             None.
 
         Side effects:
-            Creates widgets and fills self.rows.
+            Creates the canvas, the scrollbar, and the four Move buttons.
+            Does not draw the rows. redraw_rows() does that.
             Keeps self.scroller alive so the mouse wheel keeps working.
         """
         outer = tb.Frame(self.window)
         outer.pack(padx=20, pady=5, fill="both", expand=True)
 
-        canvas = tk.Canvas(outer, height=250, width=480, highlightthickness=0)
-        scrollbar = tb.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        scroll_frame = tb.Frame(canvas)
+        self.canvas = tk.Canvas(outer, height=250, width=460, highlightthickness=0)
+        scrollbar = tb.Scrollbar(outer, orient="vertical", command=self.canvas.yview)
+        self.scroll_frame = tb.Frame(self.canvas)
 
-        def remember_scroll_size(_event):
-            """Keep the scrollbar matched to the height of the checklist.
+        self.scroll_frame.bind("<Configure>", self.on_rows_resized)
+        self.canvas_window = self.canvas.create_window(
+            (0, 0),
+            window=self.scroll_frame,
+            anchor="nw",
+        )
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="left", fill="y")
+
+        order_column = tb.Frame(outer)
+        order_column.pack(side="left", fill="y", padx=(12, 0))
+
+        order_label = tb.Label(order_column, text="Merge order")
+        order_label.pack(anchor="w", pady=(0, 6))
+
+        self.move_up_button = tb.Button(
+            order_column,
+            text="Move up",
+            bootstyle="secondary",
+            command=self.move_up,
+            width=16,
+        )
+        self.move_up_button.pack(fill="x", pady=3)
+
+        self.move_down_button = tb.Button(
+            order_column,
+            text="Move down",
+            bootstyle="secondary",
+            command=self.move_down,
+            width=16,
+        )
+        self.move_down_button.pack(fill="x", pady=3)
+
+        self.move_top_button = tb.Button(
+            order_column,
+            text="Move to top",
+            bootstyle="secondary",
+            command=self.move_to_top,
+            width=16,
+        )
+        self.move_top_button.pack(fill="x", pady=3)
+
+        self.move_bottom_button = tb.Button(
+            order_column,
+            text="Move to bottom",
+            bootstyle="secondary",
+            command=self.move_to_bottom,
+            width=16,
+        )
+        self.move_bottom_button.pack(fill="x", pady=3)
+
+        self.order_status = tb.Label(
+            order_column,
+            text="",
+            wraplength=160,
+            font=("TkDefaultFont", 10, "italic"),
+        )
+        self.order_status.pack(anchor="w", pady=(8, 0))
+
+        self.scroller = VerticalScroll(self.canvas)
+
+    def on_rows_resized(self, _event):
+        """Keep the scrollbar matched to the height of the checklist.
+
+        Purpose:
+            Update the scrollable area when rows are added or the
+            highlighted button changes the height of the list.
+
+        Inputs:
+            _event: the Tk configure event. It is unused. The new size
+            is read from the frame.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Sets the canvas scroll region to the full checklist height.
+        """
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def on_canvas_resize(self, event):
+        """Keep each row inside the visible list.
+
+        Purpose:
+            A long file name would otherwise make the row wider than
+            the dialog. This dialog is not resizable, so the name stays
+            inside the scrolling area.
+
+        Inputs:
+            event: the Tk configure event. event.width is the canvas width.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Sets the width of the frame that holds the rows.
+        """
+        self.canvas.itemconfigure(self.canvas_window, width=event.width)
+
+    def redraw_rows(self):
+        """Draw the checklist again from self.rows.
+
+        Purpose:
+            The list on screen must match self.rows after a move.
+            Rebuilding the rows is easier to follow than sliding
+            widgets past each other. A folder of PDFs is small enough
+            that rebuilding is instant.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Destroys the old row widgets and creates new ones.
+            Checkbox values are kept, because each BooleanVar lives in
+            self.rows and is reused.
+            The highlighted row uses the blue info style.
+            The scroll position is kept so the list does not jump
+            back to the top.
+        """
+        scroll_position = self.canvas.yview()[0]
+
+        for child in list(self.scroll_frame.winfo_children()):
+            child.destroy()
+
+        index = 0
+        while index < len(self.rows):
+            pdf_path, checked = self.rows[index]
+            self._add_one_row(index, pdf_path, checked)
+            index = index + 1
+
+        self.scroll_frame.update_idletasks()
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.canvas.yview_moveto(scroll_position)
+
+    def _add_one_row(self, index, pdf_path, checked):
+        """Add one checkbox and one file-name button to the list.
+
+        Purpose:
+            The checkbox decides whether the file is included.
+            The button shows the position and the file name. Clicking
+            the button, or the checkbox, highlights that row so the
+            Move buttons know what to move.
+
+        Inputs:
+            index: position in self.rows. 0 is the top.
+            pdf_path: pathlib.Path of this PDF.
+            checked: the BooleanVar for this file's checkbox.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Creates widgets inside self.scroll_frame.
+        """
+        row_frame = tb.Frame(self.scroll_frame)
+        row_frame.pack(fill="x", padx=4, pady=2)
+
+        include_box = tb.Checkbutton(
+            row_frame,
+            variable=checked,
+            command=self._command_for_index(index),
+        )
+        include_box.pack(side="left")
+
+        if index == self.selected_index:
+            name_style = "info"
+        else:
+            name_style = "secondary"
+
+        # The number is part of the label so the user can see the
+        # merge position without counting rows. 1 is the first page group.
+        name_button = tb.Button(
+            row_frame,
+            text=str(index + 1) + ".  " + pdf_path.name,
+            bootstyle=name_style,
+            command=self._command_for_index(index),
+        )
+        name_button.pack(side="left", fill="x", expand=True, padx=(4, 0))
+
+    def _command_for_index(self, index):
+        """Return a no-argument function that highlights this row.
+
+        Purpose:
+            A Tk button command cannot receive the row number directly.
+            This wrapper remembers the index from the moment the button
+            was created. Using the loop variable itself would be wrong:
+            every button would see the last index after the loop ends.
+
+        Inputs:
+            index: position in self.rows. 0 is the top.
+
+        Outputs:
+            A function that takes no arguments.
+
+        Side effects:
+            None until the returned function is called.
+        """
+        def select_this_row():
+            """Highlight the row this button was built for.
 
             Purpose:
-                Update the scrollable area when the checkbox list changes size.
+                Mark this file as the one the Move buttons will rearrange.
+                If the click was on the checkbox, the checkbox has already
+                toggled. This function does not change that checkmark.
 
             Inputs:
-                _event: the Tk configure event. It is unused. The new size
-                is read from the frame.
+                None. The index was stored when _command_for_index ran.
 
             Outputs:
                 None.
 
             Side effects:
-                Sets the canvas scroll region to the full checklist height.
+                Calls select_row, which redraws the list.
             """
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            self.select_row(index)
 
-        scroll_frame.bind("<Configure>", remember_scroll_size)
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        return select_this_row
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+    def select_row(self, index):
+        """Highlight the row at this position.
 
-        for pdf_path in pdf_files:
-            checked = tk.BooleanVar(value=True)
-            tb.Checkbutton(scroll_frame, text=pdf_path.name, variable=checked).pack(
-                anchor="w",
-                padx=5,
-                pady=2,
-            )
-            self.rows.append((pdf_path, checked))
+        Purpose:
+            Clicking a file name chooses which file the Move buttons
+            affect. The checkbox is a separate choice: it decides
+            whether the file is included at all.
 
-        self.scroller = VerticalScroll(canvas)
+        Inputs:
+            index: 0 is the first row on screen.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Sets self.selected_index, redraws the list, and updates the
+            Move buttons and the status sentence.
+            Ignores an index that is outside the list.
+        """
+        if index < 0 or index >= len(self.rows):
+            return
+        self.selected_index = index
+        self.redraw_rows()
+        self.update_move_buttons()
+        self.show_highlight_status()
+
+    def show_highlight_status(self):
+        """Say which file the Move buttons will affect.
+
+        Purpose:
+            The blue file name is the highlighted row. This sentence
+            says the same thing in words, including its position.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Changes the small status label under the Move buttons.
+        """
+        if self.selected_index is None or len(self.rows) == 0:
+            self.set_order_status("Click a file name. That row is the one that moves.")
+            return
+
+        pdf_path, _checked = self.rows[self.selected_index]
+        place = self.selected_index + 1
+        total = len(self.rows)
+        self.set_order_status(
+            "Highlighted: "
+            + pdf_path.name
+            + " ("
+            + str(place)
+            + " of "
+            + str(total)
+            + ")."
+        )
+
+    def set_order_status(self, text):
+        """Change the sentence under the Move buttons.
+
+        Purpose:
+            One place updates that label so the Move methods stay short.
+
+        Inputs:
+            text: the sentence to show.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Changes the label text.
+        """
+        self.order_status.configure(text=text)
+
+    def update_move_buttons(self):
+        """Enable only the Move buttons that can do something.
+
+        Purpose:
+            Move up and Move to top do nothing on the first row.
+            Move down and Move to bottom do nothing on the last row.
+            A disabled button is harder to click by mistake.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Sets each Move button to normal or disabled.
+        """
+        if self.selected_index is None or len(self.rows) == 0:
+            self._set_move_enabled(False, False, False, False)
+            return
+
+        at_top = self.selected_index <= 0
+        at_bottom = self.selected_index >= len(self.rows) - 1
+        self._set_move_enabled(not at_top, not at_bottom, not at_top, not at_bottom)
+
+    def _set_move_enabled(self, up_enabled, down_enabled, top_enabled, bottom_enabled):
+        """Turn the four Move buttons on or off.
+
+        Purpose:
+            Keep update_move_buttons readable. Tk wants the words
+            "normal" and "disabled", and this function translates
+            True and False into those words.
+
+        Inputs:
+            up_enabled: True to allow Move up.
+            down_enabled: True to allow Move down.
+            top_enabled: True to allow Move to top.
+            bottom_enabled: True to allow Move to bottom.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Changes the state of the four Move buttons.
+        """
+        self._set_button_enabled(self.move_up_button, up_enabled)
+        self._set_button_enabled(self.move_down_button, down_enabled)
+        self._set_button_enabled(self.move_top_button, top_enabled)
+        self._set_button_enabled(self.move_bottom_button, bottom_enabled)
+
+    def _set_button_enabled(self, button, enabled):
+        """Turn one button on or off.
+
+        Purpose:
+            Translate True and False into the state words Tk expects.
+
+        Inputs:
+            button: a ttkbootstrap button.
+            enabled: True to allow clicks. False to ignore them.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Changes the button state.
+        """
+        if enabled:
+            button.configure(state="normal")
+        else:
+            button.configure(state="disabled")
+
+    def move_up(self):
+        """Move the highlighted file one place up.
+
+        Purpose:
+            Trade places with the file above it so it is merged sooner.
+
+        Inputs:
+            None. Uses self.rows and self.selected_index.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Reorders self.rows. The checkbox stays with its file.
+            The same file stays highlighted. The first file does not move.
+        """
+        self._apply_move(move_up)
+
+    def move_down(self):
+        """Move the highlighted file one place down.
+
+        Purpose:
+            Trade places with the file below it so it is merged later.
+
+        Inputs:
+            None. Uses self.rows and self.selected_index.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Reorders self.rows. The checkbox stays with its file.
+            The same file stays highlighted. The last file does not move.
+        """
+        self._apply_move(move_down)
+
+    def move_to_top(self):
+        """Move the highlighted file to the top of the list.
+
+        Purpose:
+            Make that file the first PDF in the merge.
+
+        Inputs:
+            None. Uses self.rows and self.selected_index.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Reorders self.rows. The checkbox stays with its file.
+            The same file stays highlighted at position 1.
+        """
+        self._apply_move(move_to_top)
+
+    def move_to_bottom(self):
+        """Move the highlighted file to the bottom of the list.
+
+        Purpose:
+            Make that file the last PDF in the merge.
+
+        Inputs:
+            None. Uses self.rows and self.selected_index.
+
+        Outputs:
+            None.
+
+        Side effects:
+            Reorders self.rows. The checkbox stays with its file.
+            The same file stays highlighted at the last position.
+        """
+        self._apply_move(move_to_bottom)
+
+    def _apply_move(self, move_function):
+        """Run one reorder function and refresh the checklist.
+
+        Purpose:
+            The four Move buttons share these steps. Only the direction
+            changes. The functions live in merge_logic.py so they can
+            be tested without opening a window.
+
+        Inputs:
+            move_function: move_up, move_down, move_to_top, or
+                move_to_bottom from merge_logic.py. It accepts
+                (items, index) and returns (new_items, new_index).
+
+        Outputs:
+            None.
+
+        Side effects:
+            Replaces self.rows and self.selected_index when a row is
+            highlighted, then redraws the list and the Move buttons.
+            If nothing is highlighted, writes a status sentence and
+            does not reorder.
+        """
+        if self.selected_index is None:
+            self.set_order_status("Click a file name first. That row is the one that moves.")
+            return
+
+        new_rows, new_index = move_function(self.rows, self.selected_index)
+        self.rows = new_rows
+        self.selected_index = new_index
+        self.redraw_rows()
+        self.update_move_buttons()
+        self.show_highlight_status()
 
     def _build_buttons(self):
         """Add Confirm, Select all, Clear all, and Cancel.
@@ -860,7 +1334,7 @@ class MergePDFApp:
         self.step_one = tb.Frame(self.root, relief="sunken")
         self.instruction_folder = tb.Label(
             self.step_one,
-            text="Step 1. Click Select folder. A checklist will let you choose which PDFs to include.",
+            text="Step 1. Click Select folder. A checklist will let you choose which PDFs to include and the order to merge them.",
             wraplength=MESSAGE_WRAP,
         )
         self.select_button = tb.Button(

@@ -9,7 +9,9 @@ collects the user's choices and calls these functions.
 What a merge does
 -----------------
 1. list_pdfs() finds the PDF files sitting directly inside one folder.
-2. The window lets the user uncheck any they do not want.
+   The starting order is A to Z.
+2. The window lets the user uncheck files and move rows up or down.
+   The top of that list is merged first. merge_pdfs() does not sort.
 3. prepare_output_name() turns the text box into a legal file name.
 4. choose_output_path() picks a path that will not overwrite an existing file.
 5. merge_pdfs() reads the chosen PDFs and writes one new PDF.
@@ -135,10 +137,10 @@ def list_pdfs(folder):
     """Find the PDF files that sit directly inside one folder.
 
     Purpose:
-        Build the list the checklist window shows. The merge follows
-        this order: A to Z, ignoring capital letters. merge_pdfs() does
-        not sort again. If the window passes a shorter list (the user
-        unchecked some files), that shorter list is the merge order.
+        Build the list the checklist shows when it first opens.
+        That starting order is A to Z, ignoring capital letters.
+        The checklist can move rows after that. merge_pdfs() uses the
+        list it is given and does not sort again.
 
     Inputs:
         folder: a pathlib.Path pointing at a directory.
@@ -197,6 +199,163 @@ def chosen_files(paths, checked_flags):
             chosen.append(paths[index])
         index = index + 1
     return chosen
+
+
+def list_copy(items):
+    """Return a new list containing the same items in the same order.
+
+    Purpose:
+        The move functions always hand back a new list. The checklist
+        can keep the old list if it still needs it. The items inside
+        the list are not copied, only the list itself.
+
+    Inputs:
+        items: a list. It can hold paths, or (path, checkbox) pairs.
+
+    Outputs:
+        A new list.
+
+    Side effects:
+        None.
+    """
+    copied = []
+    for item in items:
+        copied.append(item)
+    return copied
+
+
+def move_item(items, from_index, to_index):
+    """Return a new list with one item sitting at a new index.
+
+    Purpose:
+        This is the shared step behind Move up, Move down, Move to top,
+        and Move to bottom. The item that was at from_index ends up at
+        to_index. The other items keep their relative order.
+
+    Inputs:
+        items: the current list, top to bottom. Index 0 is merged first.
+        from_index: where the item is now.
+        to_index: where it should end up.
+
+    Outputs:
+        A new list. If either index is outside the list, or the two
+        indexes are the same, the order is unchanged.
+
+    Side effects:
+        None. items itself is not modified.
+    """
+    copied = list_copy(items)
+
+    if from_index < 0 or from_index >= len(copied):
+        return copied
+    if to_index < 0 or to_index >= len(copied):
+        return copied
+    if from_index == to_index:
+        return copied
+
+    # pop removes the item and closes the gap. insert then opens a
+    # gap at the destination and puts the item there.
+    item = copied.pop(from_index)
+    copied.insert(to_index, item)
+    return copied
+
+
+def move_up(items, index):
+    """Move one item one place closer to the start of the list.
+
+    Purpose:
+        The Move up button. The highlighted file trades places with
+        the file above it, so it is merged sooner. The first file
+        cannot move up.
+
+    Inputs:
+        items: the current list, top to bottom.
+        index: the highlighted item. 0 is the first item.
+
+    Outputs:
+        A tuple (new_list, new_index).
+        new_index is where the highlighted item ended up.
+        If it could not move, new_list has the same order and
+        new_index is the index that was passed in.
+
+    Side effects:
+        None.
+    """
+    if index <= 0 or index >= len(items):
+        return list_copy(items), index
+    return move_item(items, index, index - 1), index - 1
+
+
+def move_down(items, index):
+    """Move one item one place closer to the end of the list.
+
+    Purpose:
+        The Move down button. The highlighted file trades places with
+        the file below it, so it is merged later. The last file
+        cannot move down.
+
+    Inputs:
+        items: the current list, top to bottom.
+        index: the highlighted item. 0 is the first item.
+
+    Outputs:
+        A tuple (new_list, new_index). See move_up for the meaning
+        of new_index.
+
+    Side effects:
+        None.
+    """
+    last_index = len(items) - 1
+    if index < 0 or index >= last_index:
+        return list_copy(items), index
+    return move_item(items, index, index + 1), index + 1
+
+
+def move_to_top(items, index):
+    """Move one item to the start of the list.
+
+    Purpose:
+        The Move to top button. That file becomes the first PDF in
+        the merge. Files that were above it each shift down one place.
+
+    Inputs:
+        items: the current list, top to bottom.
+        index: the highlighted item. 0 is the first item.
+
+    Outputs:
+        A tuple (new_list, new_index). After a successful move,
+        new_index is 0.
+
+    Side effects:
+        None.
+    """
+    if index <= 0 or index >= len(items):
+        return list_copy(items), index
+    return move_item(items, index, 0), 0
+
+
+def move_to_bottom(items, index):
+    """Move one item to the end of the list.
+
+    Purpose:
+        The Move to bottom button. That file becomes the last PDF in
+        the merge. Files that were below it each shift up one place.
+
+    Inputs:
+        items: the current list, top to bottom.
+        index: the highlighted item. 0 is the first item.
+
+    Outputs:
+        A tuple (new_list, new_index). After a successful move,
+        new_index is the last position in the list.
+
+    Side effects:
+        None.
+    """
+    last_index = len(items) - 1
+    if index < 0 or index >= last_index:
+        return list_copy(items), index
+    return move_item(items, index, last_index), last_index
 
 
 def selection_problem(files):

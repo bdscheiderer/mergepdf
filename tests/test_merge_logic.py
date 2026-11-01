@@ -19,6 +19,10 @@ from merge_logic import (
     ensure_pdf_extension,
     list_pdfs,
     merge_pdfs,
+    move_down,
+    move_to_bottom,
+    move_to_top,
+    move_up,
     prepare_output_name,
     selection_problem,
     validate_filename,
@@ -198,6 +202,103 @@ class MergeLogicTests(unittest.TestCase):
         ]
         chosen = chosen_files(paths, [True, False, True])
         self.assertEqual(chosen, [Path("a.pdf"), Path("c.pdf")])
+
+    def test_move_up_and_move_down_swap_neighbors(self):
+        """Move up and Move down trade places with the next file.
+
+        Purpose:
+            The highlighted file moves one step. The original list
+            stays as it was, so the checklist can compare before and after.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            None on disk.
+        """
+        items = ["a", "b", "c"]
+        moved_down, index = move_down(items, 0)
+        self.assertEqual(items, ["a", "b", "c"])
+        self.assertEqual(moved_down, ["b", "a", "c"])
+        self.assertEqual(index, 1)
+
+        moved_up, index = move_up(moved_down, 1)
+        self.assertEqual(moved_up, ["a", "b", "c"])
+        self.assertEqual(index, 0)
+
+    def test_move_up_at_the_top_and_move_down_at_the_bottom_do_not_change_order(self):
+        """The first file cannot move up, and the last file cannot move down.
+
+        Purpose:
+            The buttons at the ends of the list must not scramble the order.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            None.
+        """
+        items = ["a", "b"]
+        moved, index = move_up(items, 0)
+        self.assertEqual(moved, ["a", "b"])
+        self.assertEqual(index, 0)
+
+        moved, index = move_down(items, 1)
+        self.assertEqual(moved, ["a", "b"])
+        self.assertEqual(index, 1)
+
+    def test_move_to_top_and_move_to_bottom(self):
+        """Move to top and Move to bottom put the file at an end of the list.
+
+        Purpose:
+            A file in the middle can jump to the start or the end
+            without the user clicking Move up several times.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            None.
+        """
+        items = ["a", "b", "c", "d"]
+        moved, index = move_to_top(items, 2)
+        self.assertEqual(moved, ["c", "a", "b", "d"])
+        self.assertEqual(index, 0)
+
+        moved, index = move_to_bottom(items, 1)
+        self.assertEqual(moved, ["a", "c", "d", "b"])
+        self.assertEqual(index, 3)
+
+    def test_chosen_files_follows_the_reordered_list(self):
+        """After a move, checked files stay in the new order.
+
+        Purpose:
+            The merge must use the checklist order, not A to Z.
+            Unchecked files drop out and do not pull their neighbors
+            back into alphabetical order.
+
+        Inputs:
+            None.
+
+        Outputs:
+            None.
+
+        Side effects:
+            None.
+        """
+        paths = [Path("a.pdf"), Path("b.pdf"), Path("c.pdf")]
+        reordered, _index = move_to_bottom(paths, 0)
+        chosen = chosen_files(reordered, [True, False, True])
+        self.assertEqual(chosen, [Path("b.pdf"), Path("a.pdf")])
 
     def test_selection_problem_requires_two_files(self):
         """Require two files before a merge is allowed.
