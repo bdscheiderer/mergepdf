@@ -1,8 +1,13 @@
 ; Inno Setup script for MergePDF
 ; https://jrsoftware.org/isinfo.php
+;
+; Windows packaging is the next step after the macOS .app / .dmg work.
+; This script has not been rebuilt or tested in that Mac update.
+; The icon path points at the red "m" favicon so a later Windows build
+; does not pick up the older document icon.
 
 #define AppName "MergePDF"
-#define AppVersion "1.1"
+#define AppVersion "1.2"
 #define AppPublisher "S2 Legacy, LLC"
 #define AppURL "https://mergepdf.s2legacy.com"
 #define AppExeName "MergePDF.exe"
@@ -20,8 +25,8 @@ DefaultGroupName={#AppName}
 AllowNoIcons=yes
 LicenseFile=LICENSE.txt
 OutputDir=installer
-OutputBaseFilename=MergePDF-1.1-Setup
-SetupIconFile=favicon.ico
+OutputBaseFilename=MergePDF-1.2-Setup
+SetupIconFile=assets\favicon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

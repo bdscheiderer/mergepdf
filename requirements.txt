@@ -1,2 +1,16 @@
-pypdf
-ttkbootstrap
+# Libraries needed to run MergePDF from source.
+#
+# Install them with:
+#     .venv/bin/python -m pip install -r requirements.txt
+#
+# This update was written against:
+#     pypdf 6.21.4
+#     ttkbootstrap 2.2.6
+#     Python 3.12
+#
+# pypdf is the current PDF library. PyPDF2 is not used.
+# ttkbootstrap draws the window on top of Tk. It also installs Pillow,
+# which scripts/make_icons.py uses to rebuild the icon files.
+
+pypdf>=6.0,<7
+ttkbootstrap>=2.2,<3
