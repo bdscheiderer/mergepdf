@@ -34,7 +34,7 @@ require_mac() {
     system_name="$(uname -s)"
     if [[ "${system_name}" != "Darwin" ]]; then
         echo "This build is for macOS. This computer reports: ${system_name}"
-        echo "Windows packaging is a later step."
+        echo "On Windows, run:  .\\scripts\\build_windows.ps1"
         exit 1
     fi
 }

@@ -20,6 +20,8 @@ The window has three steps:
 
 **Reset** clears the form. It does not delete any PDF.
 
+The window is 720 by 640, with the same gaps around the buttons on both systems. On a Windows display set above 100%, that layout grows with the display. A 150% setting opens a wider, taller window so Merge, Reset, Help, and Exit keep their spacing. On a Mac the window stays 720 by 640.
+
 While you run from source, the title bar uses `assets/icon.png` on a Mac and `assets/favicon.ico` on Windows. On a Mac, the Dock icon for a source run is still Python’s icon. The red “m” shows in the Dock after you build `MergePDF.app` (see below).
 
 ## Run it on a Mac
@@ -70,44 +72,6 @@ python3 -m venv .venv
 .venv/bin/python mergepdf.py
 ```
 
-## Run it on Windows
-
-### 1. Install Python 3.10 or newer, with Tk
-
-Tk is the toolkit that draws the window. The python.org installer includes it.
-
-1. Open [https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/) and install the current Windows Python (3.12 or 3.13 is fine). On the first installer screen, turn on **Add python.exe to PATH**.
-2. Open Command Prompt or PowerShell and run:
-
-```bat
-py -3 --version
-py -3 -c "import tkinter; print(tkinter.TkVersion)"
-```
-
-You want a version of at least 3.10, and the second command should print a number such as `8.6`.
-
-### 2. Get the code
-
-```bat
-git clone https://github.com/bdscheiderer/mergepdf.git
-cd mergepdf
-```
-
-If the folder is already on the PC, `cd` into it instead of cloning again.
-
-### 3. Install the libraries into a project folder
-
-```bat
-py -3 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-```
-
-### 4. Start the app
-
-```bat
-.venv\Scripts\python mergepdf.py
-```
-
 ## Check the code
 
 From the project folder, on a Mac:
@@ -118,8 +82,8 @@ From the project folder, on a Mac:
 
 On Windows:
 
-```bat
-.venv\Scripts\python -m unittest discover -s tests -v
+```powershell
+.\.venv\Scripts\python -m unittest discover -s tests -v
 ```
 
 `tests/test_merge_logic.py` builds small PDFs and merges them. It checks page order, bookmarks, a bad file, and a password-protected file.
@@ -180,11 +144,101 @@ xcrun stapler staple dist/MergePDF.app
 
 Sign and notarize when you publish a download for other people. On your own Mac, Control-click and **Open** is enough.
 
-## Windows installer
+## Windows
 
-`mergepdf.iss` is the Inno Setup script for version 1.2. Compile it in [Inno Setup](https://jrsoftware.org/isinfo.php) once `dist\MergePDF.exe` is in the project folder. The installer can add a desktop icon and writes `installer\MergePDF-1.2-Setup.exe`. The setup icon is `assets\favicon.ico`.
+Build the `.exe` and the Setup installer on a Windows PC. You can also run the app from source with the steps below. Python 3.10 or newer, Git, and [Inno Setup 6](https://jrsoftware.org/isinfo.php) are the tools the build uses. Python 3.13 is a good choice.
 
-Day-to-day use on Windows is the source run above. The `.app` and `.dmg` are built on a Mac.
+Inno Setup turns `dist\MergePDF.exe` into `installer\MergePDF-1.2-Setup.exe`. When Inno Setup is missing, the build script still creates the exe and prints how to install Inno and try again.
+
+### 1. Install Python, with Tcl/Tk
+
+Tcl/Tk is the toolkit that draws the window. The python.org installer includes it when **tcl/tk and IDLE** is checked. That box is checked by default. Leave it checked.
+
+1. Open [https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/) and install the current Windows Python (3.12 or 3.13 is fine).
+2. If the installer offers **Add python.exe to PATH**, check it.
+3. Open PowerShell and run:
+
+```powershell
+py -3 --version
+py -3 -c "import tkinter; print(tkinter.TkVersion)"
+```
+
+You want a version of at least 3.10, and the second command should print a number such as `8.6`.
+
+If the second command fails, run the Python installer again, choose **Modify**, and turn **tcl/tk and IDLE** on. Then open a new PowerShell window and try the two commands again.
+
+### 2. Get the code
+
+```powershell
+git clone https://github.com/bdscheiderer/mergepdf.git
+cd mergepdf
+```
+
+If the folder is already on the PC, `cd` into it instead of cloning again.
+
+### 3. Run it from source
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python mergepdf.py
+```
+
+### 4. Build the program and the installer
+
+From the project folder, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
+```
+
+If you are already in PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\build_windows.ps1
+```
+
+`Bypass` applies only to this window. It lets PowerShell run the script. It does not change the setting for the whole PC. Run the script from PowerShell. Opening `build_windows.ps1` from File Explorer often opens the file in Notepad.
+
+The script:
+
+1. Creates `.venv` if it is missing and installs `requirements-build.txt` (the run libraries plus PyInstaller).
+2. Rebuilds `assets\favicon.ico` from `assets\icon.png` when that icon is missing or older than the PNG. It uses `scripts\make_icons.py`.
+3. Runs PyInstaller with `MergePDF-windows.spec`. That writes one windowed program, `dist\MergePDF.exe`, with the red “m” as its icon.
+4. Checks that `dist\MergePDF.exe` exists.
+5. When Inno Setup 6 is installed, compiles `mergepdf.iss` and checks that the Setup file exists. The script looks for `ISCC.exe` under `Program Files` and `Program Files (x86)\Inno Setup 6`.
+
+The file to ship is:
+
+```
+installer\MergePDF-1.2-Setup.exe
+```
+
+Copy that file to another Windows PC and run it. Setup installs MergePDF for the current user. A desktop icon is an optional checkbox during setup.
+
+`dist\MergePDF.exe` is the program the installer places on the PC. You can run that file on the computer that built it. Each launch unpacks into a temporary folder, so the first window can take a few seconds.
+
+PyInstaller is the same packager the Mac build uses. On Windows the spec builds one file, because `mergepdf.iss` copies `dist\MergePDF.exe`. Close MergePDF before building again. Windows will not replace an exe that is still running.
+
+### First launch on Windows
+
+The script does not sign the exe or the installer. Windows SmartScreen may warn that an unrecognized app was blocked.
+
+When that warning appears:
+
+1. Choose **More info**.
+2. Choose **Run anyway**. Some Windows versions say **Open anyway**.
+
+Windows remembers that choice for that file.
+
+To see a Python error, run from source in PowerShell. The built exe has no console window. A crash in the built exe shows PyInstaller’s error dialog.
+
+```powershell
+.\.venv\Scripts\python mergepdf.py
+```
+
+The build script creates `.venv` and installs the libraries when you have not already done that in step 3.
 
 ## Icons
 
@@ -192,7 +246,7 @@ Day-to-day use on Windows is the source run above. The `.app` and `.dmg` are bui
 | --- | --- |
 | `assets/icon.png` | Master picture, 512×512, red “m”. The Mac window uses this when you run from source. |
 | `assets/icon.icns` | Mac Finder and Dock icon, used by PyInstaller. |
-| `assets/favicon.ico` | Same artwork at several sizes. Windows uses it for the title bar and the installer. It also works as a browser tab icon. |
+| `assets/favicon.ico` | Same artwork at several sizes. Windows exe icon, installer icon, and the window icon on Windows. Also used for a browser tab. |
 
 Rebuild them after replacing the PNG:
 
@@ -200,17 +254,17 @@ Rebuild them after replacing the PNG:
 .venv/bin/python scripts/make_icons.py
 ```
 
-On Windows, the same command is `.venv\Scripts\python scripts\make_icons.py`. On a Mac, `./scripts/build_macos.sh` rebuilds the icons and then runs `iconutil`.
+On Windows, the same command is `.\.venv\Scripts\python scripts\make_icons.py`. On a Mac, `./scripts/build_macos.sh` rebuilds the icons and then runs `iconutil`. On Windows, `.\scripts\build_windows.ps1` runs the same icon script when `favicon.ico` is missing or older than the PNG.
 
 ## Where the code lives
 
 Read in this order:
 
 1. `merge_logic.py` — finds PDFs, checks the file name, and merges. No window. Each function says what it is for, what it expects, and what it changes.
-2. `mergepdf.py` — the three-step window. It calls the functions in `merge_logic.py`.
+2. `mergepdf.py` — the three-step window. It calls the functions in `merge_logic.py`. The shared sizes are in `window_layout.py`.
 3. `tests/` — small PDFs created during the test, then deleted.
 4. `MergePDF.spec` and `scripts/build_macos.sh` — the Mac app and disk image.
-5. `mergepdf.iss` — the Windows installer script.
+5. `MergePDF-windows.spec`, `scripts/build_windows.ps1`, and `mergepdf.iss` — the Windows exe and the Setup installer.
 
 `main()` is at the bottom of `mergepdf.py`.
 

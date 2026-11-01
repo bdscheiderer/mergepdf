@@ -2,9 +2,18 @@
 
 How to run this file
 --------------------
-From the project folder, after the libraries are installed:
+From the project folder, after the libraries are installed.
+
+On a Mac:
 
     .venv/bin/python scripts/make_icons.py
+
+On Windows:
+
+    .venv/Scripts/python scripts/make_icons.py
+
+scripts/build_macos.sh always runs this file. scripts/build_windows.ps1
+runs it when favicon.ico is missing or older than icon.png.
 
 What it reads
 -------------
