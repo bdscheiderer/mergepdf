@@ -1,5 +1,7 @@
-# mergpdf 
+# MergePDF
 
-This began as a simple python script to merge several pdf files together using the PdfMerger fucntion from from PyPDF2: https://pypi.org/project/PyPDF2/
+A small desktop utility that combines multiple PDF files into one document.
 
-Added a gui with tkinter/tkbootstrap to make an .exe for the final project for CS50x.
+Started as a Python script using [PyPDF2](https://pypi.org/project/PyPDF2/) `PdfMerger`, then wrapped in a tkinter/tkbootstrap GUI for the CS50x final project. Builds available for macOS and Windows.
+
+Portfolio: [s2legacy.com](https://s2legacy.com)
