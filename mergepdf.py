@@ -10,11 +10,15 @@ How to read this file
 
 How to run it
 -------------
-From the project folder:
+From the project folder, on a Mac:
 
     .venv/bin/python mergepdf.py
 
-The README has the full Mac setup, including how to build a .app.
+On Windows:
+
+    .venv/Scripts/python mergepdf.py
+
+The README has the full setup, including the Mac app and the Windows installer.
 """
 
 import os
@@ -32,11 +36,18 @@ except ImportError as import_error:
     print("MergePDF could not start the window.")
     print("Details: " + str(import_error))
     print("")
-    print("Install Python from https://www.python.org/downloads/macos/")
-    print("That installer includes Tk, which draws this window.")
-    print("If you installed Python with Homebrew, also install the matching python-tk package.")
-    print("Then install the project libraries:")
-    print("    .venv/bin/python -m pip install -r requirements.txt")
+    if sys.platform == "win32":
+        print("Install Python from https://www.python.org/downloads/windows/")
+        print("That installer includes Tk, which draws this window.")
+        print("Leave tcl/tk and IDLE checked.")
+        print("Then install the project libraries:")
+        print(r"    .venv\Scripts\python -m pip install -r requirements.txt")
+    else:
+        print("Install Python from https://www.python.org/downloads/macos/")
+        print("That installer includes Tk, which draws this window.")
+        print("If you installed Python with Homebrew, also install the matching python-tk package.")
+        print("Then install the project libraries:")
+        print("    .venv/bin/python -m pip install -r requirements.txt")
     raise SystemExit(1)
 
 from merge_logic import (
@@ -54,17 +65,28 @@ from merge_logic import (
     prepare_output_name,
     selection_problem,
 )
-
-
-# The window is wide enough for the three instructions to wrap cleanly.
-WINDOW_WIDTH = 720
-WINDOW_HEIGHT = 640
-
-# Status lines wrap inside the window instead of running off the edge.
-MESSAGE_WRAP = 660
-
-# The merge status sits beside the Open button, so it wraps in a narrower column.
-MERGE_MESSAGE_WRAP = 330
+from window_layout import (
+    BUTTON_GAP,
+    DIALOG_INTRO_WRAP,
+    DIALOG_LIST_HEIGHT,
+    DIALOG_LIST_WIDTH,
+    DIALOG_PAD_X,
+    DIALOG_STATUS_WRAP,
+    MERGE_MESSAGE_WRAP,
+    MESSAGE_WRAP,
+    SCREEN_MARGIN,
+    STEP_GAP,
+    STEP_PAD_BOTTOM,
+    STEP_PAD_TOP,
+    STEP_PAD_X,
+    STEP_PAD_Y,
+    WINDOW_EDGE_PAD,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+    apply_layout_scale,
+    choose_layout_factor,
+    size_that_fits,
+)
 
 
 def resource_path(relative_path):
@@ -163,12 +185,104 @@ def window_icon_path():
     return None
 
 
+def windows_dpi_over_96():
+    """Return the Windows display scale as a multiple of 96 DPI.
+
+    Purpose:
+        96 DPI is the old 100% setting. 120 is 125%, 144 is 150%,
+        and 192 is 200%. A window sized in 100% pixels looks small
+        and tight on those displays.
+
+    Inputs:
+        None. Asks Windows for the system DPI.
+
+    Outputs:
+        1.0 when this is not Windows, when the call fails, or when
+        the DPI is 96 or less.
+        Otherwise DPI divided by 96. 1.5 means the display is at 150%.
+
+    Side effects:
+        None.
+    """
+    if sys.platform != "win32":
+        return 1.0
+
+    try:
+        import ctypes
+        dpi = int(ctypes.windll.user32.GetDpiForSystem())
+    except (AttributeError, OSError, ValueError):
+        return 1.0
+
+    if dpi <= 96:
+        return 1.0
+    return dpi / 96.0
+
+
+def layout_scale(window):
+    """Return how much to enlarge the shared layout on this screen.
+
+    Purpose:
+        ttkbootstrap already enlarges button padding and fonts when
+        Windows is above 100%. The window size and the gaps used to
+        stay at the Mac pixel counts, so those larger buttons were
+        crushed together. This is the same kind of factor, and the
+        window uses it too.
+
+        Mac and Linux return 1, so their windows stay 720 by 640.
+        Windows uses whichever is larger: Tk's own scale, or the
+        display DPI. They match on a normal PC. If Tk did not notice
+        the DPI, the display value still enlarges the window.
+
+    Inputs:
+        window: the Tk window whose screen should be measured.
+
+    Outputs:
+        A float. 1.0 means use the layout numbers unchanged.
+        Greater than 1 means the window and the gaps grow.
+
+    Side effects:
+        None. Does not resize the window.
+    """
+    if sys.platform != "win32":
+        return 1.0
+
+    tk_factor = 1.0
+    try:
+        from ttkbootstrap.style.scaling import Scaling
+        tk_factor = float(Scaling.for_widget(window).factor)
+    except (AttributeError, TypeError, ValueError, tk.TclError):
+        tk_factor = 1.0
+
+    return choose_layout_factor(tk_factor, windows_dpi_over_96())
+
+
+def scaled_px(window, logical_size):
+    """Turn a shared layout size into pixels for this screen.
+
+    Purpose:
+        One call site for window size, wrap length, and padding.
+        The numbers live in window_layout.py and are the Mac layout.
+
+    Inputs:
+        window: the Tk window. Used to read the Windows display scale.
+        logical_size: an int, or a tuple of ints such as (8, 4).
+
+    Outputs:
+        An int, or a tuple of ints. Unchanged when layout_scale is 1.
+
+    Side effects:
+        None.
+    """
+    return apply_layout_scale(logical_size, layout_scale(window))
+
+
 def place_window_on_screen(window, width, height):
     """Put a window in the middle of the screen.
 
     Purpose:
         A fixed-size window should open where the user can see it,
-        not in the corner.
+        not in the corner. If the requested size is taller than the
+        screen, it is shrunk so the title bar stays visible.
 
     Inputs:
         window: a Tk window that already exists.
@@ -184,6 +298,14 @@ def place_window_on_screen(window, width, height):
     window.update_idletasks()
     screen_width = window.winfo_screenwidth()
     screen_height = window.winfo_screenheight()
+    margin = scaled_px(window, SCREEN_MARGIN)
+    width, height = size_that_fits(
+        width,
+        height,
+        screen_width,
+        screen_height,
+        margin,
+    )
     x_position = (screen_width - width) // 2
     y_position = (screen_height - height) // 2
     window.geometry(str(width) + "x" + str(height) + "+" + str(x_position) + "+" + str(y_position))
@@ -513,9 +635,13 @@ class PdfChoiceDialog:
                 "then use the Move buttons. The merge follows this list from "
                 "top to bottom. It starts in A to Z order."
             ),
-            wraplength=640,
+            wraplength=scaled_px(self.window, DIALOG_INTRO_WRAP),
         )
-        introduction.pack(padx=20, pady=(15, 5), anchor="w")
+        introduction.pack(
+            padx=scaled_px(self.window, DIALOG_PAD_X),
+            pady=scaled_px(self.window, (15, 5)),
+            anchor="w",
+        )
 
         self._build_checklist()
         self._build_buttons()
@@ -556,9 +682,19 @@ class PdfChoiceDialog:
             Keeps self.scroller alive so the mouse wheel keeps working.
         """
         outer = tb.Frame(self.window)
-        outer.pack(padx=20, pady=5, fill="both", expand=True)
+        outer.pack(
+            padx=scaled_px(self.window, DIALOG_PAD_X),
+            pady=scaled_px(self.window, 5),
+            fill="both",
+            expand=True,
+        )
 
-        self.canvas = tk.Canvas(outer, height=250, width=460, highlightthickness=0)
+        self.canvas = tk.Canvas(
+            outer,
+            height=scaled_px(self.window, DIALOG_LIST_HEIGHT),
+            width=scaled_px(self.window, DIALOG_LIST_WIDTH),
+            highlightthickness=0,
+        )
         scrollbar = tb.Scrollbar(outer, orient="vertical", command=self.canvas.yview)
         self.scroll_frame = tb.Frame(self.canvas)
 
@@ -575,10 +711,10 @@ class PdfChoiceDialog:
         scrollbar.pack(side="left", fill="y")
 
         order_column = tb.Frame(outer)
-        order_column.pack(side="left", fill="y", padx=(12, 0))
+        order_column.pack(side="left", fill="y", padx=(scaled_px(self.window, 12), 0))
 
         order_label = tb.Label(order_column, text="Merge order")
-        order_label.pack(anchor="w", pady=(0, 6))
+        order_label.pack(anchor="w", pady=(0, scaled_px(self.window, 6)))
 
         self.move_up_button = tb.Button(
             order_column,
@@ -587,7 +723,7 @@ class PdfChoiceDialog:
             command=self.move_up,
             width=16,
         )
-        self.move_up_button.pack(fill="x", pady=3)
+        self.move_up_button.pack(fill="x", pady=scaled_px(self.window, 3))
 
         self.move_down_button = tb.Button(
             order_column,
@@ -596,7 +732,7 @@ class PdfChoiceDialog:
             command=self.move_down,
             width=16,
         )
-        self.move_down_button.pack(fill="x", pady=3)
+        self.move_down_button.pack(fill="x", pady=scaled_px(self.window, 3))
 
         self.move_top_button = tb.Button(
             order_column,
@@ -605,7 +741,7 @@ class PdfChoiceDialog:
             command=self.move_to_top,
             width=16,
         )
-        self.move_top_button.pack(fill="x", pady=3)
+        self.move_top_button.pack(fill="x", pady=scaled_px(self.window, 3))
 
         self.move_bottom_button = tb.Button(
             order_column,
@@ -614,15 +750,15 @@ class PdfChoiceDialog:
             command=self.move_to_bottom,
             width=16,
         )
-        self.move_bottom_button.pack(fill="x", pady=3)
+        self.move_bottom_button.pack(fill="x", pady=scaled_px(self.window, 3))
 
         self.order_status = tb.Label(
             order_column,
             text="",
-            wraplength=160,
+            wraplength=scaled_px(self.window, DIALOG_STATUS_WRAP),
             font=("TkDefaultFont", 10, "italic"),
         )
-        self.order_status.pack(anchor="w", pady=(8, 0))
+        self.order_status.pack(anchor="w", pady=(scaled_px(self.window, 8), 0))
 
         self.scroller = VerticalScroll(self.canvas)
 
@@ -723,7 +859,11 @@ class PdfChoiceDialog:
             Creates widgets inside self.scroll_frame.
         """
         row_frame = tb.Frame(self.scroll_frame)
-        row_frame.pack(fill="x", padx=4, pady=2)
+        row_frame.pack(
+            fill="x",
+            padx=scaled_px(self.window, 4),
+            pady=scaled_px(self.window, 2),
+        )
 
         include_box = tb.Checkbutton(
             row_frame,
@@ -745,7 +885,12 @@ class PdfChoiceDialog:
             bootstyle=name_style,
             command=self._command_for_index(index),
         )
-        name_button.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        name_button.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(scaled_px(self.window, 4), 0),
+        )
 
     def _command_for_index(self, index):
         """Return a no-argument function that highlights this row.
@@ -1055,7 +1200,7 @@ class PdfChoiceDialog:
             Creates the buttons along the bottom of the dialog.
         """
         button_row = tb.Frame(self.window)
-        button_row.pack(pady=(5, 15))
+        button_row.pack(pady=scaled_px(self.window, (5, 15)))
 
         self.confirm_button = tb.Button(
             button_row,
@@ -1063,7 +1208,7 @@ class PdfChoiceDialog:
             bootstyle="primary",
             command=self.confirm,
         )
-        self.confirm_button.pack(side="left", padx=8)
+        self.confirm_button.pack(side="left", padx=scaled_px(self.window, WINDOW_EDGE_PAD))
 
         select_all_button = tb.Button(
             button_row,
@@ -1071,7 +1216,7 @@ class PdfChoiceDialog:
             bootstyle="secondary",
             command=self.select_all,
         )
-        select_all_button.pack(side="left", padx=8)
+        select_all_button.pack(side="left", padx=scaled_px(self.window, WINDOW_EDGE_PAD))
 
         clear_button = tb.Button(
             button_row,
@@ -1079,7 +1224,7 @@ class PdfChoiceDialog:
             bootstyle="warning",
             command=self.clear_all,
         )
-        clear_button.pack(side="left", padx=8)
+        clear_button.pack(side="left", padx=scaled_px(self.window, WINDOW_EDGE_PAD))
 
         cancel_button = tb.Button(
             button_row,
@@ -1087,7 +1232,7 @@ class PdfChoiceDialog:
             bootstyle="secondary",
             command=self.cancel,
         )
-        cancel_button.pack(side="left", padx=8)
+        cancel_button.pack(side="left", padx=scaled_px(self.window, WINDOW_EDGE_PAD))
 
     def checked_paths(self):
         """Return the paths whose boxes are currently checked.
@@ -1262,7 +1407,11 @@ class MergePDFApp:
         self._build_step_three()
         self._layout_frames()
 
-        place_window_on_screen(self.root, WINDOW_WIDTH, WINDOW_HEIGHT)
+        place_window_on_screen(
+            self.root,
+            scaled_px(self.root, WINDOW_WIDTH),
+            scaled_px(self.root, WINDOW_HEIGHT),
+        )
         self.select_button.focus_set()
         self.update_merge_button()
 
@@ -1335,7 +1484,7 @@ class MergePDFApp:
         self.instruction_folder = tb.Label(
             self.step_one,
             text="Step 1. Click Select folder. A checklist will let you choose which PDFs to include and the order to merge them.",
-            wraplength=MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MESSAGE_WRAP),
         )
         self.select_button = tb.Button(
             self.step_one,
@@ -1346,7 +1495,7 @@ class MergePDFApp:
             self.step_one,
             text="No folder selected yet.",
             font=("TkDefaultFont", 10, "italic"),
-            wraplength=MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MESSAGE_WRAP),
         )
 
     def _build_step_two(self):
@@ -1369,7 +1518,7 @@ class MergePDFApp:
         self.instruction_name = tb.Label(
             self.step_two,
             text="Step 2. Type a name for the merged file and click Submit name. Leave it blank to use merged_pdfs.pdf.",
-            wraplength=MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MESSAGE_WRAP),
         )
         self.submit_button = tb.Button(
             self.step_two,
@@ -1385,7 +1534,7 @@ class MergePDFApp:
             self.step_two,
             text="Leave blank for the default name: merged_pdfs.pdf",
             font=("TkDefaultFont", 10, "italic"),
-            wraplength=MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MESSAGE_WRAP),
         )
 
     def _build_step_three(self):
@@ -1409,7 +1558,7 @@ class MergePDFApp:
         self.instruction_merge = tb.Label(
             self.step_three,
             text="Step 3. Click Merge PDFs. The new file is saved in the same folder.",
-            wraplength=MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MESSAGE_WRAP),
         )
         self.merge_button = tb.Button(
             self.step_three,
@@ -1440,7 +1589,7 @@ class MergePDFApp:
             self.step_three,
             text="",
             font=("TkDefaultFont", 10, "italic"),
-            wraplength=MERGE_MESSAGE_WRAP,
+            wraplength=scaled_px(self.root, MERGE_MESSAGE_WRAP),
         )
         self.open_button = tb.Button(
             self.step_three,
@@ -1456,6 +1605,11 @@ class MergePDFApp:
             Tk's grid is rows and columns. The window has one column and
             three rows of equal height. Each row is one step.
 
+            The padding numbers are the Mac layout. scaled_px() turns
+            them into pixels for this screen. On Windows above 100%
+            they grow with the buttons, so Merge, Reset, Help, and Exit
+            are not packed into a small gap.
+
         Inputs:
             None.
 
@@ -1466,6 +1620,14 @@ class MergePDFApp:
             Makes the widgets visible (except Open merged PDF, which is
             placed and then hidden so Tk remembers where to put it back).
         """
+        edge = scaled_px(self.root, WINDOW_EDGE_PAD)
+        between_steps = scaled_px(self.root, STEP_GAP)
+        step_x = scaled_px(self.root, STEP_PAD_X)
+        step_top = scaled_px(self.root, STEP_PAD_TOP)
+        step_y = scaled_px(self.root, STEP_PAD_Y)
+        step_bottom = scaled_px(self.root, STEP_PAD_BOTTOM)
+        button_gap = scaled_px(self.root, BUTTON_GAP)
+
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
@@ -1474,30 +1636,30 @@ class MergePDFApp:
         # Let the status line in step 1 use the full width of that row.
         self.step_one.columnconfigure(0, weight=1)
 
-        self.step_one.grid(row=0, column=0, sticky="nsew", padx=8, pady=(8, 4))
-        self.step_two.grid(row=1, column=0, sticky="nsew", padx=8, pady=4)
-        self.step_three.grid(row=2, column=0, sticky="nsew", padx=8, pady=(4, 8))
+        self.step_one.grid(row=0, column=0, sticky="nsew", padx=edge, pady=(edge, between_steps))
+        self.step_two.grid(row=1, column=0, sticky="nsew", padx=edge, pady=between_steps)
+        self.step_three.grid(row=2, column=0, sticky="nsew", padx=edge, pady=(between_steps, edge))
 
-        self.instruction_folder.grid(row=0, column=0, sticky="w", padx=16, pady=(10, 4))
-        self.select_button.grid(row=1, column=0, sticky="w", padx=16, pady=4)
-        self.message_folder.grid(row=2, column=0, sticky="ew", padx=16, pady=(4, 10))
+        self.instruction_folder.grid(row=0, column=0, sticky="w", padx=step_x, pady=(step_top, step_y))
+        self.select_button.grid(row=1, column=0, sticky="w", padx=step_x, pady=step_y)
+        self.message_folder.grid(row=2, column=0, sticky="ew", padx=step_x, pady=(step_y, step_bottom))
 
         self.step_two.columnconfigure(1, weight=1)
-        self.instruction_name.grid(row=0, column=0, columnspan=2, sticky="ew", padx=16, pady=(10, 4))
-        self.submit_button.grid(row=1, column=0, sticky="w", padx=16, pady=4)
-        self.name_entry.grid(row=1, column=1, sticky="ew", padx=(8, 16), pady=4)
-        self.message_name.grid(row=2, column=0, columnspan=2, sticky="ew", padx=16, pady=(4, 10))
+        self.instruction_name.grid(row=0, column=0, columnspan=2, sticky="ew", padx=step_x, pady=(step_top, step_y))
+        self.submit_button.grid(row=1, column=0, sticky="w", padx=step_x, pady=step_y)
+        self.name_entry.grid(row=1, column=1, sticky="ew", padx=(edge, step_x), pady=step_y)
+        self.message_name.grid(row=2, column=0, columnspan=2, sticky="ew", padx=step_x, pady=(step_y, step_bottom))
 
         for column in range(5):
             self.step_three.columnconfigure(column, weight=1)
 
-        self.instruction_merge.grid(row=0, column=0, columnspan=5, sticky="ew", padx=16, pady=(10, 4))
-        self.merge_button.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(16, 4), pady=4)
-        self.reset_button.grid(row=1, column=2, sticky="ew", padx=4, pady=4)
-        self.help_button.grid(row=1, column=3, sticky="ew", padx=4, pady=4)
-        self.exit_button.grid(row=1, column=4, sticky="ew", padx=(4, 16), pady=4)
-        self.message_merge.grid(row=2, column=0, columnspan=3, sticky="ew", padx=16, pady=(4, 10))
-        self.open_button.grid(row=2, column=3, columnspan=2, sticky="e", padx=(4, 16), pady=(4, 10))
+        self.instruction_merge.grid(row=0, column=0, columnspan=5, sticky="ew", padx=step_x, pady=(step_top, step_y))
+        self.merge_button.grid(row=1, column=0, columnspan=2, sticky="ew", padx=(step_x, button_gap), pady=step_y)
+        self.reset_button.grid(row=1, column=2, sticky="ew", padx=button_gap, pady=step_y)
+        self.help_button.grid(row=1, column=3, sticky="ew", padx=button_gap, pady=step_y)
+        self.exit_button.grid(row=1, column=4, sticky="ew", padx=(button_gap, step_x), pady=step_y)
+        self.message_merge.grid(row=2, column=0, columnspan=3, sticky="ew", padx=step_x, pady=(step_y, step_bottom))
+        self.open_button.grid(row=2, column=3, columnspan=2, sticky="e", padx=(button_gap, step_x), pady=(step_y, step_bottom))
         # grid() then grid_remove() records the position. A later grid()
         # with no arguments puts the button back in that same spot.
         self.open_button.grid_remove()

@@ -35,7 +35,7 @@ def require_mac():
         raise SystemExit(
             "MergePDF.spec builds a macOS app.\n"
             "On a Mac, run:  ./scripts/build_macos.sh\n"
-            "Windows packaging is a later step."
+            "On Windows, run:  .\\scripts\\build_windows.ps1"
         )
 
 
