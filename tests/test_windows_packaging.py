@@ -201,6 +201,11 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn("installer\\MergePDF-1.2-Setup.exe", text)
         self.assertIn("requirements-build.txt", text)
         self.assertIn("make_icons.py", text)
+        self.assertIn("check_tk.py", text)
+        # A python -c string with quotes is split by Windows PowerShell 5.1.
+        # The Tk check has to be a real file. See scripts/check_tk.py.
+        self.assertNotIn("-c 'import tkinter", text)
+        self.assertNotIn('-c "import tkinter', text)
         self.assertIn("Program Files (x86)", text)
         self.assertIn("Inno Setup 6\\ISCC.exe", text)
         self.assertIn("Purpose:", text)

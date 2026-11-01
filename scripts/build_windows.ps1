@@ -233,17 +233,31 @@ function Test-PythonCanDrawAWindow {
     #     Make sure this Python includes Tcl/Tk, which draws the window.
     #
     # Inputs:
-    #     None. Uses $script:PythonExe.
+    #     None. Uses $script:PythonExe and scripts\check_tk.py.
     #
     # Outputs:
     #     None.
     #
     # Side effects:
     #     Prints the Tk version when the import works.
-    #     Exits with install help when tkinter cannot be imported.
+    #     Exits with install help when scripts\check_tk.py exits 2,
+    #     which means tkinter itself failed to import.
+    #     Exits with a different message when the check fails for any
+    #     other reason, so that failure is not described as a missing Tk.
+    #
+    # This runs a .py file on purpose. Do not replace it with python -c.
+    # Windows PowerShell 5.1 rewrites quotes in a python -c string before
+    # Python starts. The old line was split, and Python saw only:
+    #     import tkinter; print(Tk
+    # That is a SyntaxError. Tk was never asked to import.
     Write-Host "Checking Tk"
-    & $script:PythonExe -c 'import tkinter; print("Tk version " + str(tkinter.TkVersion))'
-    if ($LASTEXITCODE -ne 0) {
+    $checker = Get-ProjectPath "scripts\check_tk.py"
+    & $script:PythonExe $checker
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    if ($LASTEXITCODE -eq 2) {
         Write-Host ""
         Write-Host "This Python cannot draw a window (tkinter is missing)."
         Write-Host "Install Python from https://www.python.org/downloads/windows/"
@@ -252,6 +266,12 @@ function Test-PythonCanDrawAWindow {
         Write-Host "Then delete the .venv folder and run this script again."
         exit 1
     }
+
+    Write-Host ""
+    Write-Host "The Tk check failed (exit code $LASTEXITCODE)."
+    Write-Host "The lines above are the Python error. They are not a missing-Tk result."
+    Write-Host "Fix that error and run this script again."
+    exit 1
 }
 
 
