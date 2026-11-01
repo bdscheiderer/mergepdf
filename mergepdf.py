@@ -10,11 +10,15 @@ How to read this file
 
 How to run it
 -------------
-From the project folder:
+From the project folder, on a Mac:
 
     .venv/bin/python mergepdf.py
 
-The README has the full Mac setup, including how to build a .app.
+On Windows:
+
+    .venv/Scripts/python mergepdf.py
+
+The README has the full setup, including the Mac app and the Windows installer.
 """
 
 import os
@@ -32,11 +36,18 @@ except ImportError as import_error:
     print("MergePDF could not start the window.")
     print("Details: " + str(import_error))
     print("")
-    print("Install Python from https://www.python.org/downloads/macos/")
-    print("That installer includes Tk, which draws this window.")
-    print("If you installed Python with Homebrew, also install the matching python-tk package.")
-    print("Then install the project libraries:")
-    print("    .venv/bin/python -m pip install -r requirements.txt")
+    if sys.platform == "win32":
+        print("Install Python from https://www.python.org/downloads/windows/")
+        print("That installer includes Tk, which draws this window.")
+        print("Leave tcl/tk and IDLE checked.")
+        print("Then install the project libraries:")
+        print(r"    .venv\Scripts\python -m pip install -r requirements.txt")
+    else:
+        print("Install Python from https://www.python.org/downloads/macos/")
+        print("That installer includes Tk, which draws this window.")
+        print("If you installed Python with Homebrew, also install the matching python-tk package.")
+        print("Then install the project libraries:")
+        print("    .venv/bin/python -m pip install -r requirements.txt")
     raise SystemExit(1)
 
 from merge_logic import (

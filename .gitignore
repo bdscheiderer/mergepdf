@@ -16,6 +16,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# Inno Setup output from scripts/build_windows.ps1 and mergepdf.iss.
+installer/
 downloads/
 eggs/
 .eggs/
@@ -36,8 +38,11 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-# MergePDF.spec is the Mac build we keep. Other spec files stay ignored.
+# MergePDF.spec is the Mac build we keep.
+# MergePDF-windows.spec is the Windows build we keep.
+# Any other spec PyInstaller generates stays ignored.
 !MergePDF.spec
+!MergePDF-windows.spec
 
 # Installer logs
 pip-log.txt
