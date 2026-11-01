@@ -159,7 +159,7 @@ On a Mac, `./scripts/build_macos.sh` does that and then runs `iconutil`. On Wind
 Read in this order:
 
 1. `merge_logic.py` — finds PDFs, checks the file name, and merges. No window. Each function says what it is for, what it expects, and what it changes.
-2. `mergepdf.py` — the three-step window. It calls the functions in `merge_logic.py`.
+2. `mergepdf.py` — the three-step window. It calls the functions in `merge_logic.py`. The shared sizes are in `window_layout.py`.
 3. `tests/` — small PDFs created during the test, then deleted.
 4. `MergePDF.spec` and `scripts/build_macos.sh` — the Mac app build.
 5. `MergePDF-windows.spec`, `scripts/build_windows.ps1`, and `mergepdf.iss` — the Windows exe and the Setup installer.
@@ -171,6 +171,8 @@ Read in this order:
 Build the `.exe` and the Setup installer on a Windows PC. Python 3.10 or newer, Git, and [Inno Setup 6](https://jrsoftware.org/isinfo.php) are the tools these steps use. Python 3.13 is a good choice. Creating `MergePDF.exe` has to happen on Windows. The checks in this repository cover the spec file and the build script. They do not produce the exe.
 
 Inno Setup is what turns `dist\MergePDF.exe` into `installer\MergePDF-1.2-Setup.exe`. When Inno Setup is missing, the build script still creates the exe and prints how to install Inno and try again.
+
+The window uses the same layout as the Mac app (720 by 640, with the same gaps around the buttons). On a Windows display set above 100%, that layout grows with the display. A 150% setting opens a wider, taller window so Merge, Reset, Help, and Exit are not packed into the 100% pixel size. The Mac window stays the size it already is.
 
 ### 1. Install Python, with Tcl/Tk
 
