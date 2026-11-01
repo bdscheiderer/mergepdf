@@ -1,18 +1,28 @@
 # MergePDF
 
-MergePDF is a small desktop app. You pick a folder, check the PDFs you want, name the result, and it writes one new PDF in that same folder. The files stay on your computer. The app does not upload them.
+MergePDF is a small desktop app for macOS and Windows. You pick a folder, check the PDFs you want, name the result, and it writes one new PDF in that same folder. The files stay on your computer. The app does not upload them.
 
-This version uses [pypdf](https://pypi.org/project/pypdf/) to join the pages and [ttkbootstrap](https://ttkbootstrap.readthedocs.io/) for the window. An earlier version used PyPDF2. That library is no longer maintained. pypdf is the project that continued the work, and `PdfWriter.append` is the call that joins the files.
+Version 1.2 uses [pypdf](https://pypi.org/project/pypdf/) to join the pages and [ttkbootstrap](https://ttkbootstrap.readthedocs.io/) for the window. An earlier version used PyPDF2. That library is no longer maintained. pypdf is the project that continued the work, and `PdfWriter.append` is the call that joins the files.
 
 The app icon is the red rounded square with the white script “m”.
 
-Portfolio: [s2legacy.com](https://s2legacy.com) · Download page: [mergepdf.s2legacy.com](https://mergepdf.s2legacy.com)
+Download: [mergepdf.s2legacy.com](https://mergepdf.s2legacy.com) · Portfolio: [s2legacy.com](https://s2legacy.com)
 
-The download buttons on the website can stay as they are for now. This project folder is the app itself.
+## Using the app
+
+The window has three steps:
+
+1. **Select folder.** A checklist opens with every PDF in that folder checked. The list starts in A to Z order. Click a file name, then use Move up, Move down, Move to top, or Move to bottom. Uncheck any file you want to leave out. Confirm needs at least two files. The merge follows the list from top to bottom.
+2. **Submit name.** Leave the box blank to use `merged_pdfs.pdf`.
+3. **Merge PDFs.** The new file is written in the same folder. If that name already exists, the date and time are added in front so the older file is kept.
+
+**Open merged PDF** appears after a successful merge. On a Mac it opens the file in Preview. On Windows it opens the file in the default PDF app.
+
+**Reset** clears the form. It does not delete any PDF.
+
+While you run from source, the title bar uses `assets/icon.png` on a Mac and `assets/favicon.ico` on Windows. On a Mac, the Dock icon for a source run is still Python’s icon. The red “m” shows in the Dock after you build `MergePDF.app` (see below).
 
 ## Run it on a Mac
-
-These steps were checked as far as a Linux machine can check them (the tests, and opening the window). Building the `.app` and the `.dmg` has to happen on your Mac. The script is ready. The Dock picture and Gatekeeper warning were not seen from here.
 
 ### 1. Install Python 3.10 or newer, with Tk
 
@@ -60,33 +70,65 @@ python3 -m venv .venv
 .venv/bin/python mergepdf.py
 ```
 
-The window has three steps:
+## Run it on Windows
 
-1. **Select folder.** A checklist opens with every PDF in that folder checked. The list starts in A to Z order. Click a file name, then use Move up, Move down, Move to top, or Move to bottom. Uncheck any file you want to leave out. Confirm needs at least two files. The merge follows the list from top to bottom.
-2. **Submit name.** Leave the box blank to use `merged_pdfs.pdf`.
-3. **Merge PDFs.** The new file is written in the same folder. If that name already exists, the date and time are added in front so the older file is kept.
+### 1. Install Python 3.10 or newer, with Tk
 
-**Open merged PDF** appears after a successful merge and opens the file in Preview.
+Tk is the toolkit that draws the window. The python.org installer includes it.
 
-**Reset** clears the form. It does not delete any PDF.
+1. Open [https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/) and install the current Windows Python (3.12 or 3.13 is fine). On the first installer screen, turn on **Add python.exe to PATH**.
+2. Open Command Prompt or PowerShell and run:
 
-While you run from source, the title bar uses `assets/icon.png`. The Dock icon for a source run is still Python’s icon. The red “m” shows in the Dock after you build `MergePDF.app` (next section).
+```bat
+py -3 --version
+py -3 -c "import tkinter; print(tkinter.TkVersion)"
+```
+
+You want a version of at least 3.10, and the second command should print a number such as `8.6`.
+
+### 2. Get the code
+
+```bat
+git clone https://github.com/bdscheiderer/mergepdf.git
+cd mergepdf
+```
+
+If the folder is already on the PC, `cd` into it instead of cloning again.
+
+### 3. Install the libraries into a project folder
+
+```bat
+py -3 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+```
+
+### 4. Start the app
+
+```bat
+.venv\Scripts\python mergepdf.py
+```
 
 ## Check the code
 
-From the project folder:
+From the project folder, on a Mac:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
+On Windows:
+
+```bat
+.venv\Scripts\python -m unittest discover -s tests -v
+```
+
 `tests/test_merge_logic.py` builds small PDFs and merges them. It checks page order, bookmarks, a bad file, and a password-protected file.
 
-`tests/test_window.py` opens the real window, fills in a name, and clicks the merge code. It needs a display (your Mac has one). It does not click the system folder dialog. Try that dialog yourself once: Select folder, confirm two files, merge, and open the result in Preview.
+`tests/test_window.py` opens the real window, fills in a name, and runs the merge. It needs a display. It does not open the system folder dialog. Try that dialog yourself once: Select folder, confirm two files, run the merge, and open the result.
 
 ## Build a Mac app and a disk image
 
-Run this on the Mac, in the project folder:
+Run this on a Mac, in the project folder:
 
 ```bash
 chmod +x scripts/build_macos.sh
@@ -97,14 +139,14 @@ The script:
 
 1. Creates `.venv` if it is missing and installs `requirements-build.txt` (the run libraries plus PyInstaller).
 2. Rebuilds `assets/favicon.ico` and `assets/icon.icns` from `assets/icon.png`.
-3. When `sips` and `iconutil` are available (they are on a normal Mac), it rebuilds `icon.icns` with Apple’s tools so Finder gets a native icon.
+3. Uses `sips` and `iconutil` to rebuild `icon.icns` so Finder gets a native icon.
 4. Runs PyInstaller with `MergePDF.spec`.
 5. Checks that `dist/MergePDF.app` contains `Contents/Resources/icon.icns` and that `Info.plist` points at it.
 6. Writes `dist/MergePDF-1.2.dmg` with the app and a shortcut to the Applications folder.
 
-The `.app` matches the kind of Mac you build it on. An Apple silicon Mac mini produces an Apple silicon app. `LSMinimumSystemVersion` in the bundle is 11.0. The practical floor is the macOS version required by the Python you used to build.
+The `.app` matches the kind of Mac you build it on. An Apple silicon Mac produces an Apple silicon app. `LSMinimumSystemVersion` in the bundle is 11.0. The practical floor is the macOS version required by the Python you used to build.
 
-PyInstaller is the right packager for this stack: one Python file, Tk, and pypdf, with no separate web view. The spec file uses the onedir `.app` layout. A one-file Mac bundle fights macOS security checks, and current PyInstaller warns against it.
+PyInstaller packs this app: one Python file, Tk, and pypdf, with no separate web view. The spec file uses the onedir `.app` layout. A one-file Mac bundle fights macOS security checks, and current PyInstaller warns against it.
 
 ### First launch on a Mac
 
@@ -118,13 +160,13 @@ To open it the first time:
 
 If Control-click is not offered, open **System Settings → Privacy & Security** and use the **Open Anyway** button next to the MergePDF block message.
 
-After that, a normal double-click is enough. The Dock and Finder icon should be the red “m”. If you still see a generic icon, the build script would have stopped with an error about `icon.icns`. Run it again and read the last lines.
+After that, a normal double-click is enough. The Dock and Finder icon should be the red “m”. If you still see a generic icon, run the build again and read the last lines. The script stops when `icon.icns` is missing from the app.
 
-To see a Python error, run from source (` .venv/bin/python mergepdf.py `) in Terminal. The built app has no Terminal window. A crash in the built app shows PyInstaller’s error dialog.
+To see a Python error, run from source (`.venv/bin/python mergepdf.py`) in Terminal. The built app has no Terminal window. A crash in the built app shows PyInstaller’s error dialog.
 
 ### Signing and notarizing later
 
-These commands are optional. They need an Apple Developer membership and a Developer ID Application certificate in your Keychain. They were not run from the machine that prepared this update. Replace the name in quotes with the exact certificate name from Keychain Access.
+These commands are optional. They need an Apple Developer membership and a Developer ID Application certificate in Keychain Access. Replace the name in quotes with the exact certificate name from Keychain Access.
 
 ```bash
 codesign --deep --force --options runtime --sign "Developer ID Application: Your Name (TEAMID)" dist/MergePDF.app
@@ -136,15 +178,21 @@ xcrun stapler staple dist/MergePDF.app
 
 `notarytool` also accepts a keychain profile so the Apple ID password is not typed into the command. Apple’s notarization notes: [https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
 
-Do this only when you are ready to publish a download. It is not required to use the app on your own Mac.
+Sign and notarize when you publish a download for other people. On your own Mac, Control-click and **Open** is enough.
+
+## Windows installer
+
+`mergepdf.iss` is the Inno Setup script for version 1.2. Compile it in [Inno Setup](https://jrsoftware.org/isinfo.php) once `dist\MergePDF.exe` is in the project folder. The installer can add a desktop icon and writes `installer\MergePDF-1.2-Setup.exe`. The setup icon is `assets\favicon.ico`.
+
+Day-to-day use on Windows is the source run above. The `.app` and `.dmg` are built on a Mac.
 
 ## Icons
 
 | File | Role |
 | --- | --- |
-| `assets/icon.png` | Master picture, 512×512, red “m”. The window uses this when you run from source. |
+| `assets/icon.png` | Master picture, 512×512, red “m”. The Mac window uses this when you run from source. |
 | `assets/icon.icns` | Mac Finder and Dock icon, used by PyInstaller. |
-| `assets/favicon.ico` | Same artwork, several sizes, for a later Windows build and for a browser tab. |
+| `assets/favicon.ico` | Same artwork at several sizes. Windows uses it for the title bar and the installer. It also works as a browser tab icon. |
 
 Rebuild them after replacing the PNG:
 
@@ -152,7 +200,7 @@ Rebuild them after replacing the PNG:
 .venv/bin/python scripts/make_icons.py
 ```
 
-On a Mac, `./scripts/build_macos.sh` does that and then runs `iconutil`.
+On Windows, the same command is `.venv\Scripts\python scripts\make_icons.py`. On a Mac, `./scripts/build_macos.sh` rebuilds the icons and then runs `iconutil`.
 
 ## Where the code lives
 
@@ -161,13 +209,10 @@ Read in this order:
 1. `merge_logic.py` — finds PDFs, checks the file name, and merges. No window. Each function says what it is for, what it expects, and what it changes.
 2. `mergepdf.py` — the three-step window. It calls the functions in `merge_logic.py`.
 3. `tests/` — small PDFs created during the test, then deleted.
-4. `MergePDF.spec` and `scripts/build_macos.sh` — the Mac app build.
+4. `MergePDF.spec` and `scripts/build_macos.sh` — the Mac app and disk image.
+5. `mergepdf.iss` — the Windows installer script.
 
 `main()` is at the bottom of `mergepdf.py`.
-
-## Windows
-
-A Windows `.exe` and the Inno Setup installer are the next packaging step. `mergepdf.iss` is still in the folder so that work has a starting point. It has not been rebuilt or tested as part of this Mac update. The app code itself still has a Windows branch for the icon and for opening the merged PDF.
 
 ## License
 
