@@ -1,0 +1,10 @@
+# Libraries needed to build the Mac app, on top of the ones needed to run it.
+#
+# Install them with:
+#     .venv/bin/python -m pip install -r requirements-build.txt
+#
+# PyInstaller 6.22 was current when this file was written.
+# scripts/build_macos.sh installs this file for you.
+
+-r requirements.txt
+pyinstaller>=6.16,<7

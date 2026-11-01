@@ -36,6 +36,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# MergePDF.spec is the Mac build we keep. Other spec files stay ignored.
+!MergePDF.spec
 
 # Installer logs
 pip-log.txt
